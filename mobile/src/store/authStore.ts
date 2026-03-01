@@ -8,10 +8,12 @@ interface AuthState {
     roles: Role[];
     activeRole: 'customer' | 'driver' | null;
     loading: boolean;
+    isSigningUp: boolean;
 
     refreshSession: () => Promise<void>;
     refreshProfile: () => Promise<void>;
     setActiveRole: (role: 'customer' | 'driver') => void;
+    setSigningUp: (status: boolean) => void;
     signOut: () => Promise<void>;
 }
 
@@ -21,6 +23,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     roles: [],
     activeRole: null,
     loading: true,
+    isSigningUp: false,
 
     refreshSession: async () => {
         try {
@@ -96,6 +99,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (get().roles.includes(role)) {
             set({ activeRole: role });
         }
+    },
+
+    setSigningUp: (status) => {
+        set({ isSigningUp: status });
     },
 
     signOut: async () => {

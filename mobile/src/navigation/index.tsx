@@ -110,11 +110,11 @@ const DriverTabs = () => {
 };
 
 export const RootNavigator = () => {
-    const { user, activeRole } = useAuthStore();
+    const { user, activeRole, isSigningUp } = useAuthStore();
 
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {!user ? (
+            {!user || isSigningUp ? (
                 <>
                     <Stack.Screen name="Login" component={LoginScreen} />
                     <Stack.Screen name="SignUp" component={SignUpScreen} />

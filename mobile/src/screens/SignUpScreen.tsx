@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
+import { useAuthStore } from '../store/authStore';
 import { Mail, Lock, User, UserPlus, ArrowLeft, Briefcase, ShoppingBag } from 'lucide-react-native';
 
 export const SignUpScreen = ({ navigation }: any) => {
@@ -22,6 +23,9 @@ export const SignUpScreen = ({ navigation }: any) => {
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<'customer' | 'driver'>('customer');
     const [loading, setLoading] = useState(false);
+
+    const setSigningUp = useAuthStore(state => state.setSigningUp);
+    const refreshSession = useAuthStore(state => state.refreshSession);
 
     const validateEmail = (email: string) => {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -49,6 +53,7 @@ export const SignUpScreen = ({ navigation }: any) => {
         }
 
         setLoading(true);
+        setSigningUp(true);
         try {
             // 1. Sign up user
             const { data: { user }, error: signUpError } = await supabase.auth.signUp({
@@ -106,15 +111,24 @@ export const SignUpScreen = ({ navigation }: any) => {
                 if (driverError) console.error('Driver profile error:', driverError);
             }
 
-            Alert.alert(
-                'Account Created!',
-                'Welcome to Appetite! Please check your email for a verification link before signing in.',
-                [{ text: 'Got it', onPress: () => navigation.navigate('Login') }]
-            );
+            // 5. Force session refresh to accurately load the new role
+            await refreshSession();
+
+            // If Supabase didn't auto-login (e.g. email verification required)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                Alert.alert(
+                    'Account Created!',
+                    'Welcome to Appetite! Please check your email for a verification link before signing in.',
+                    [{ text: 'Got it', onPress: () => navigation.navigate('Login') }]
+                );
+            }
+            // If they are auto-logged in, they will be seamlessly routed once we release the lock below.
 
         } catch (error: any) {
             Alert.alert('Sign Up Failed', error.message);
         } finally {
+            setSigningUp(false);
             setLoading(false);
         }
     };
