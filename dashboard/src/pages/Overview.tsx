@@ -50,7 +50,7 @@ export const Overview = () => {
     const isAdmin = currentRole === 'admin';
 
     const displayStats = isAdmin ? [
-        { label: "Total Orders Today", value: stats?.todayOrders || '0', icon: <Activity size={20} />, color: "text-blue-400" },
+        { label: "Total Orders", value: stats?.todayOrders || '0', icon: <Activity size={20} />, color: "text-blue-400" },
         { label: "Revenue (USD)", value: `$${stats?.revenue?.toFixed(2) || '0.00'}`, icon: <DollarSign size={20} />, color: "text-green-400" },
         { label: "Online Restaurants", value: stats?.onlineRestaurants?.toString() || '0', icon: <Store size={20} />, color: "text-purple-400" },
         { label: "Active Drivers", value: stats?.activeDrivers?.toString() || '0', icon: <Users size={20} />, color: "text-orange-400" },

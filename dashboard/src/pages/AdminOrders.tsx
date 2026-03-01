@@ -117,7 +117,10 @@ export const AdminOrders = () => {
                                         <td className="px-6 py-4 font-mono text-xs text-white">#{order.id.slice(0, 8).toUpperCase()}</td>
                                         <td className="px-6 py-4 text-muted">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                         <td className="px-6 py-4 font-medium">{order.profiles?.full_name || 'Guest User'}</td>
-                                        <td className="px-6 py-4 text-muted">{order.restaurants?.name || 'Unknown Store'}</td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-white font-medium">{order.restaurants?.name || 'Unknown Store'}</p>
+                                            <p className="text-xs text-muted mt-0.5">{order.restaurants?.profiles?.phone || 'No phone listed'}</p>
+                                        </td>
                                         <td className="px-6 py-4">
                                             <StatusPill status={order.status} />
                                         </td>

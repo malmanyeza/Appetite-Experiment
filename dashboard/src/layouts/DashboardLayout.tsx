@@ -74,15 +74,17 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             return; // Wait for restaurant ID to load
         }
 
+        const channelOpts: any = {
+            event: '*',
+            schema: 'public',
+            table: 'orders'
+        };
+        if (filterString) channelOpts.filter = filterString;
+
         const channel = supabase.channel('global-orders')
             .on(
                 'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: filterString
-                },
+                channelOpts,
                 (payload) => {
                     queryClient.invalidateQueries({ queryKey: ['restaurant-orders'] });
                     queryClient.invalidateQueries({ queryKey: ['admin-orders'] });

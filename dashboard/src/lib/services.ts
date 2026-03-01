@@ -29,7 +29,10 @@ export const ordersService = {
             .select(`
         *,
         profiles:customer_id (full_name),
-        restaurants:restaurant_id (name)
+        restaurants:restaurant_id (
+            name,
+            profiles:owner_user_id (phone)
+        )
       `)
             .order('created_at', { ascending: false });
         if (error) throw error;
@@ -262,11 +265,10 @@ export const adminService = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 1. Get today's orders
+        // 1. Get all orders (all-time)
         const { data: orders, error: ordersError } = await supabase
             .from('orders')
-            .select('pricing')
-            .gte('created_at', today.toISOString());
+            .select('pricing');
 
         if (ordersError) throw ordersError;
 

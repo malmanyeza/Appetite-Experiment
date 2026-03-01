@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,7 @@ import {
     ActivityIndicator,
     RefreshControl
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
 import { ShoppingBag, ChevronRight, Clock } from 'lucide-react-native';
@@ -17,6 +17,31 @@ import { useAuthStore } from '../store/authStore';
 export const OrdersScreen = ({ navigation }: any) => {
     const { theme } = useTheme();
     const { user } = useAuthStore();
+
+    const queryClient = useQueryClient();
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const channel = supabase.channel(`user-orders-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `customer_id=eq.${user.id}`
+                },
+                () => {
+                    queryClient.invalidateQueries({ queryKey: ['orders', user.id] });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, queryClient]);
 
     const { data: orders, isLoading, refetch, isRefetching } = useQuery({
         queryKey: ['orders', user?.id],
@@ -36,6 +61,10 @@ export const OrdersScreen = ({ navigation }: any) => {
         },
         enabled: !!user
     });
+
+    const formatStatus = (status: string) => {
+        return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -97,7 +126,7 @@ export const OrdersScreen = ({ navigation }: any) => {
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                        {formatStatus(item.status)}
                     </Text>
                 </View>
             </View>
