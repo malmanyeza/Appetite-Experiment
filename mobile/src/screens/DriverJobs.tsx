@@ -22,8 +22,9 @@ export const DriverJobs = () => {
     const { theme } = useTheme();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const [isOnline, setIsOnline] = useState(true);
+    const [isOnline, setIsOnline] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // 1. GPS Heartbeat (Zimbabwe Optimized: Updates every 2 mins to save battery while online)
     const updateLocation = async () => {
@@ -42,6 +43,30 @@ export const DriverJobs = () => {
             console.warn('Location heartbeat failed:', e);
         }
     };
+
+    const toggleOnlineStatus = async (value: boolean) => {
+        setIsOnline(value);
+        setIsSyncing(true);
+        if (user?.id) {
+            await supabase.from('driver_profiles').update({
+                is_online: value
+            }).eq('user_id', user.id);
+            if (value) {
+                updateLocation();
+            }
+        }
+        setIsSyncing(false);
+    };
+
+    // Auto-sync status on mount
+    useEffect(() => {
+        if (user?.id) {
+            supabase.from('driver_profiles').select('is_online').eq('user_id', user.id).single()
+                .then(({ data }) => {
+                    if (data) setIsOnline(data.is_online);
+                });
+        }
+    }, [user?.id]);
 
     useEffect(() => {
         updateLocation();
@@ -186,7 +211,8 @@ export const DriverJobs = () => {
                 </View>
                 <Switch
                     value={isOnline}
-                    onValueChange={setIsOnline}
+                    onValueChange={toggleOnlineStatus}
+                    disabled={isSyncing}
                     trackColor={{ false: theme.border, true: '#22C55E' }}
                     thumbColor="#FFF"
                 />

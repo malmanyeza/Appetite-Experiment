@@ -1,6 +1,23 @@
--- Geospatial Top-5 Driver Dispatch Engine
+-- 1. Ensure driver profiles have GPS fields
+ALTER TABLE public.driver_profiles 
+ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS last_location_update TIMESTAMPTZ DEFAULT NOW();
 
--- 1. Create the targeted dispatch table
+-- 2. Create the RPC for drivers to update their live location from the mobile app
+CREATE OR REPLACE FUNCTION public.update_driver_location(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE public.driver_profiles
+    SET 
+        lat = p_lat,
+        lng = p_lng,
+        last_location_update = NOW()
+    WHERE user_id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. Create the targeted dispatch table (Job Offers)
 CREATE TABLE IF NOT EXISTS public.driver_job_offers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
@@ -10,22 +27,25 @@ CREATE TABLE IF NOT EXISTS public.driver_job_offers (
     UNIQUE(order_id, driver_id)
 );
 
--- Enable RLS for the offers table
+-- 4. Enable RLS and Realtime WebSockets for the Live Feed
 ALTER TABLE public.driver_job_offers ENABLE ROW LEVEL SECURITY;
 
--- Policy: Drivers can see their own offers
+DROP POLICY IF EXISTS "Drivers can view targeted job offers" ON public.driver_job_offers;
 CREATE POLICY "Drivers can view targeted job offers"
 ON public.driver_job_offers FOR SELECT
 USING (auth.uid() = driver_id);
 
--- 2. Create the Trigger Function to Dispatch to Top 5 Closest Drivers
+-- Explicitly enable Supabase Realtime for the job offers table
+ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_job_offers;
+
+-- 5. Create the Spatial Engine Trigger
 CREATE OR REPLACE FUNCTION public.trigger_dispatch_closest_drivers()
 RETURNS TRIGGER AS $$
 DECLARE
     r_lat DOUBLE PRECISION;
     r_lng DOUBLE PRECISION;
 BEGIN
-    -- Only run when status flips to 'ready_for_pickup'
+    -- Only run when status flips TO 'ready_for_pickup'
     IF NEW.status = 'ready_for_pickup' AND (OLD.status IS NULL OR OLD.status != 'ready_for_pickup') THEN
         
         -- Get the restaurant coordinates
@@ -33,24 +53,13 @@ BEGIN
         FROM public.restaurants 
         WHERE id = NEW.restaurant_id;
 
-        -- If restaurant has no coordinates, we just broadcast to 5 random online drivers
-        IF r_lat IS NULL OR r_lng IS NULL THEN
-            INSERT INTO public.driver_job_offers (order_id, driver_id)
-            SELECT NEW.id, user_id FROM public.driver_profiles 
-            WHERE is_online = true 
-            LIMIT 5;
-            RETURN NEW;
-        END IF;
-
-        -- Calculate distance using Haversine and INSERT top 5 closest online drivers
+        -- Calculate distance using Haversine and push to top 5 closest online drivers
         INSERT INTO public.driver_job_offers (order_id, driver_id)
         SELECT NEW.id, dp.user_id 
         FROM public.driver_profiles dp
         WHERE dp.is_online = true 
-          AND dp.lat IS NOT NULL AND dp.lng IS NOT NULL
-          AND dp.last_location_update > (NOW() - INTERVAL '30 minutes') -- Ensure they aren't ghost connections
         ORDER BY 
-          (6371 * acos(cos(radians(dp.lat)) * cos(radians(r_lat)) * cos(radians(r_lng) - radians(dp.lng)) + sin(radians(dp.lat)) * sin(radians(r_lat)))) ASC
+          (6371 * acos(cos(radians(COALESCE(dp.lat, 0))) * cos(radians(COALESCE(r_lat, 0))) * cos(radians(COALESCE(r_lng, 0)) - radians(COALESCE(dp.lng, 0))) + sin(radians(COALESCE(dp.lat, 0))) * sin(radians(COALESCE(r_lat, 0))))) ASC
         LIMIT 5;
     END IF;
 
@@ -58,32 +67,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 3. Attach the Trigger to the Orders table
+-- 6. Attach the Trigger
 DROP TRIGGER IF EXISTS trg_dispatch_closest_drivers ON public.orders;
 CREATE TRIGGER trg_dispatch_closest_drivers
 AFTER UPDATE ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.trigger_dispatch_closest_drivers();
 
--- 4. Create an optimized View for the Driver App to query targeted jobs
-DROP VIEW IF EXISTS public.targeted_driver_jobs;
-CREATE OR REPLACE VIEW public.targeted_driver_jobs AS
-SELECT 
-    djo.id as offer_id,
-    o.*,
-    r.name as restaurant_name,
-    r.suburb as restaurant_suburb,
-    r.lat as restaurant_lat,
-    r.lng as restaurant_lng
-FROM public.driver_job_offers djo
-JOIN public.orders o ON djo.order_id = o.id
-JOIN public.restaurants r ON o.restaurant_id = r.id
-WHERE djo.driver_id = auth.uid() 
-  AND djo.status = 'pending'
-  AND o.driver_id IS NULL 
-  AND o.status = 'ready_for_pickup';
-
--- 5. Upgrade the standard Accept Order RPC to clear out offers after acceptance
+-- 7. Upgrade Job Acceptance to clear out remaining targeted offers dynamically
 CREATE OR REPLACE FUNCTION public.accept_order_safely(p_order_id UUID)
 RETURNS JSONB AS $$
 DECLARE
@@ -106,10 +97,34 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_order_id;
 
-    -- CASCADE REALTIME DELETE: Instantly vaporize the offer from the other 4 drivers' mobile screens!
+    -- Vaporize the offer from the other 4 drivers' screens
     DELETE FROM public.driver_job_offers
     WHERE order_id = p_order_id;
 
     RETURN jsonb_build_object('success', true, 'message', 'Job accepted successfully.');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 8. Create the Secure Flat View for the Mobile App
+-- This view runs with system privileges, bypassing any strict RLS on the nested orders and restaurants tables!
+DROP VIEW IF EXISTS public.targeted_driver_jobs;
+CREATE OR REPLACE VIEW public.targeted_driver_jobs AS
+SELECT 
+    djo.id as offer_id,
+    djo.status as offer_status,
+    djo.driver_id as offer_assigned_driver_id,
+    djo.created_at as offer_created_at,
+    o.*,
+    r.name as restaurant_name,
+    r.suburb as restaurant_suburb,
+    r.city as restaurant_city,
+    r.landmark_notes as restaurant_landmark_notes,
+    r.lat as restaurant_lat,
+    r.lng as restaurant_lng,
+    p.full_name as customer_name,
+    p.phone as customer_phone
+FROM public.driver_job_offers djo
+JOIN public.orders o ON djo.order_id = o.id
+JOIN public.restaurants r ON o.restaurant_id = r.id
+JOIN public.profiles p ON o.customer_id = p.id
+WHERE djo.driver_id = auth.uid();
