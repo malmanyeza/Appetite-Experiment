@@ -98,6 +98,7 @@ export const CartScreen = ({ navigation }: any) => {
             if (itemsError) throw itemsError;
 
             clearCart();
+            navigation.navigate('Home', { screen: 'HomeMain' }); // Reset the active HomeStack
             navigation.navigate('Tracking', { screen: 'TrackingMain', params: { orderId: order.id } });
         } catch (error: any) {
             Alert.alert('Checkout Error', error.message);

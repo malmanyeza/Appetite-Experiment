@@ -21,6 +21,8 @@ import { SignUpScreen } from '../screens/SignUpScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { OrderDetailsScreen } from '../screens/OrderDetailsScreen';
 import { DriverOnboarding } from '../screens/DriverOnboarding';
+import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
+import { TermsOfServiceScreen } from '../screens/TermsOfServiceScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -42,6 +44,8 @@ const AccountStack = () => {
             <Stack.Screen name="AccountMain" component={AccountScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="DriverOnboarding" component={DriverOnboarding} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
         </Stack.Navigator>
     );
 };
@@ -132,6 +136,8 @@ export const RootNavigator = () => {
                 <>
                     <Stack.Screen name="Login" component={LoginScreen} />
                     <Stack.Screen name="SignUp" component={SignUpScreen} />
+                    <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+                    <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
                 </>
             ) : activeRole === 'driver' ? (
                 <Stack.Screen name="DriverApp" component={DriverTabs} />

@@ -22,7 +22,9 @@ import {
     Share2,
     HelpCircle,
     Smartphone,
-    Briefcase
+    Briefcase,
+    Trash2,
+    FileText
 } from 'lucide-react-native';
 
 export const AccountScreen = ({ navigation }: any) => {
@@ -36,6 +38,29 @@ export const AccountScreen = ({ navigation }: any) => {
             [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Sign Out', style: 'destructive', onPress: signOut }
+            ]
+        );
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            'Delete Account',
+            'Are you sure you want to permanently delete your account? This action cannot be undone and you will lose all data.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { error } = await supabase.rpc('delete_user_account');
+                            if (error) throw error;
+                            signOut(); // Force local logout after remote destruction
+                        } catch (err: any) {
+                            Alert.alert('Error', err.message);
+                        }
+                    }
+                }
             ]
         );
     };
@@ -171,6 +196,8 @@ export const AccountScreen = ({ navigation }: any) => {
                 <View style={[styles.menuContainer, { backgroundColor: theme.surface }]}>
                     <MenuItem icon={Share2} label="Invite Friends" onPress={handleShare} />
                     <MenuItem icon={HelpCircle} label="Help & Support" onPress={() => { }} />
+                    <MenuItem icon={FileText} label="Terms of Service" onPress={() => navigation.navigate('TermsOfService')} />
+                    <MenuItem icon={FileText} label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy')} />
                     <MenuItem icon={Settings} label="App Settings" onPress={() => { }} showBorder={false} />
                 </View>
             </View>
@@ -178,6 +205,11 @@ export const AccountScreen = ({ navigation }: any) => {
             <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
                 <LogOut size={20} color="#EF4444" />
                 <Text style={styles.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
+                <Trash2 size={20} color="#DC2626" />
+                <Text style={styles.deleteText}>Delete Account</Text>
             </TouchableOpacity>
 
             <Text style={[styles.versionText, { color: theme.textMuted }]}>Version 1.0.0 (Build 5)</Text>
@@ -248,5 +280,14 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     signOutText: { color: '#EF4444', fontSize: 18, fontWeight: 'bold' },
+    deleteButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        marginTop: 8,
+        marginBottom: 24,
+    },
+    deleteText: { color: '#DC2626', fontSize: 16, fontWeight: 'bold' },
     versionText: { textAlign: 'center', fontSize: 14, marginBottom: 100 },
 });

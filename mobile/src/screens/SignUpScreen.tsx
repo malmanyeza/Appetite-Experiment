@@ -193,6 +193,24 @@ export const SignUpScreen = ({ navigation }: any) => {
                         />
                     </View>
 
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 8, paddingHorizontal: 16 }}>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
+                            By signing up, you agree to our{' '}
+                        </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('TermsOfService')}>
+                            <Text style={{ color: theme.accent, fontSize: 13, fontWeight: 'bold' }}>Terms of Service</Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
+                            {' '}and{' '}
+                        </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
+                            <Text style={{ color: theme.accent, fontSize: 13, fontWeight: 'bold' }}>Privacy Policy</Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: theme.textMuted, fontSize: 13, textAlign: 'center' }}>
+                            .
+                        </Text>
+                    </View>
+
                     <TouchableOpacity
                         style={[styles.signUpButton, { backgroundColor: theme.accent }]}
                         onPress={handleSignUp}

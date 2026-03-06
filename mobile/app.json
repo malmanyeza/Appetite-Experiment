@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Appetite",
-    "slug": "appetite-mobile",
+    "name": "Appetize",
+    "slug": "appetize-mobile",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +15,12 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.appetize.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Appetize to access your camera to take a photo for your driver profile picture.",
+        "NSPhotoLibraryUsageDescription": "Allow Appetize to access your photos to upload a driver profile picture."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +38,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Appetite to use your location to find nearby restaurants and dispatch deliveries accurately."
+          "locationAlwaysAndWhenInUsePermission": "Allow Appetize to use your location to find nearby restaurants and dispatch deliveries accurately."
         }
       ]
     ],
