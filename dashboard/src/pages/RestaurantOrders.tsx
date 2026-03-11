@@ -123,6 +123,7 @@ export const RestaurantOrders = () => {
     const OrderCard = ({ order }: { order: any }) => {
         const needsAttention = order.status === 'confirmed' && (new Date().getTime() - new Date(order.created_at).getTime() > 120000);
         const minutesAgo = Math.floor((new Date().getTime() - new Date(order.created_at).getTime()) / 60000);
+        const isUnpaidOnline = order.payment?.method === 'paynow' && order.payment?.status === 'pending';
 
         return (
             <div className={cn(
@@ -135,13 +136,30 @@ export const RestaurantOrders = () => {
 
                 <div className="flex justify-between items-start">
                     <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-xl font-bold">#{order.id.slice(0, 8)}</span>
                             {needsAttention && <AlertTriangle size={14} className="text-red-400" />}
+                            {order.payment?.method === 'paynow' && order.payment?.status === 'paid' && (
+                                <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded-full font-bold">PAID ONLINE</span>
+                            )}
+                            {order.payment?.method === 'cod' && (
+                                <span className="bg-orange-500/20 text-orange-400 text-[10px] px-2 py-0.5 rounded-full font-bold">COD</span>
+                            )}
                         </div>
-                        <p className={cn("text-sm font-medium", needsAttention ? "text-red-400" : "text-muted")}>
-                            {minutesAgo === 0 ? 'Just now' : `${minutesAgo} min ago`}
+                        <p className={cn("text-xs font-bold uppercase tracking-wider", needsAttention ? "text-red-400" : "text-muted")}>
+                            Ordered: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <span className="ml-2 py-0.5 px-1.5 rounded bg-white/5 text-accent">
+                                {new Date(order.created_at).toDateString() === new Date().toDateString() ? 'TODAY' : new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
                         </p>
+                        {order.delivered_at && (
+                            <p className="text-xs font-bold text-green-400 uppercase tracking-wider mt-0.5">
+                                Delivered: {new Date(order.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                <span className="ml-1 opacity-70">
+                                    ({new Date(order.delivered_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(order.delivered_at).toLocaleDateString([], { month: 'short', day: 'numeric' })})
+                                </span>
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -167,12 +185,19 @@ export const RestaurantOrders = () => {
                 <div className="mt-auto pt-4 border-t border-white/5">
                     {order.status === 'confirmed' && (
                         <div className="flex gap-2">
-                            <button
-                                onClick={() => updateStatusMutation.mutate({ orderId: order.id, status: 'preparing' })}
-                                className="flex-1 btn-primary py-3 text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
-                            >
-                                <Timer size={16} /> Accept & Prepare
-                            </button>
+                            {isUnpaidOnline ? (
+                                <div className="flex-1 bg-red-500/10 border border-red-500/20 py-3 text-sm flex items-center justify-center gap-2 rounded-xl">
+                                    <AlertTriangle size={16} className="text-red-400" />
+                                    <span className="text-red-400 font-bold">Awaiting Payment</span>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => updateStatusMutation.mutate({ orderId: order.id, status: 'preparing' })}
+                                    className="flex-1 btn-primary py-3 text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                                >
+                                    <Timer size={16} /> Accept & Prepare
+                                </button>
+                            )}
                         </div>
                     )}
                     {order.status === 'preparing' && (

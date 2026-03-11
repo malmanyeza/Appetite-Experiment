@@ -350,33 +350,31 @@ export const adminService = {
     },
 
     async getGlobalAnalytics() {
-        // Start of today in UTC
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
 
-        // 1. Get all orders (all-time)
+        // 1. Get all orders for revenue calculation and charting
         const { data: orders, error: ordersError } = await supabase
             .from('orders')
-            .select('pricing');
+            .select('pricing, created_at, status, delivered_at')
+            .neq('status', 'cancelled');
 
         if (ordersError) throw ordersError;
 
         // 2. Get online restaurants
-        const { count: onlineRestaurants, error: restError } = await supabase
+        const { count: onlineRestaurants } = await supabase
             .from('restaurants')
             .select('*', { count: 'exact', head: true })
             .eq('is_open', true);
 
         // 3. Get total active drivers
-        const { count: activeDrivers, error: driverError } = await supabase
+        const { count: activeDrivers } = await supabase
             .from('user_roles')
             .select('*', { count: 'exact', head: true })
             .eq('role', 'driver');
 
-        // 4. Generate basic alerts
+        // 4. Generate alerts (delayed orders, etc.)
         const alerts = [];
-
-        // Delayed Orders (not delivered/cancelled and older than 30 mins)
         const thirtyMinsAgo = new Date(Date.now() - 30 * 60000).toISOString();
         const { count: delayedOrders } = await supabase
             .from('orders')
@@ -389,40 +387,21 @@ export const adminService = {
             alerts.push({
                 type: 'delayed_orders',
                 title: 'Delayed Orders',
-                message: `${delayedOrders} orders have been delayed > 30 mins.`,
+                message: `${delayedOrders} orders delayed > 30 mins.`,
                 color: 'red'
             });
         }
 
-        // Offline Restaurants
-        const { count: offlineCount } = await supabase
-            .from('restaurants')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_open', false);
-
-        if (offlineCount && offlineCount > 0) {
-            alerts.push({
-                type: 'store_offline',
-                title: 'Stores Offline',
-                message: `${offlineCount} partner restaurants are currently offline.`,
-                color: 'orange'
-            });
-        }
-
-        if (activeDrivers && activeDrivers < 5) {
-            alerts.push({
-                type: 'driver_shortage',
-                title: 'Driver Shortage',
-                message: `Only ${activeDrivers} drivers available. Expect high delivery times.`,
-                color: 'yellow'
-            });
-        }
-
-        const totalRevenue = orders.reduce((acc, order) => acc + (order.pricing?.total || 0), 0);
+        // Calculations
+        const todayOrders = orders.filter(o => new Date(o.created_at) >= startOfToday);
+        const todayRevenue = todayOrders.reduce((acc, o) => acc + (o.pricing?.platform_commission || 0), 0);
+        const totalRevenue = orders.reduce((acc, o) => acc + (o.pricing?.platform_commission || 0), 0);
 
         return {
-            todayOrders: orders.length,
-            revenue: totalRevenue,
+            todayOrders: todayOrders.length,
+            todayRevenue,
+            totalRevenue,
+            allOrders: orders, // For frontend charting
             onlineRestaurants: onlineRestaurants || 0,
             activeDrivers: activeDrivers || 0,
             alerts

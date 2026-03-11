@@ -106,11 +106,11 @@ export const AdminOrders = () => {
                             <thead className="bg-white/5 border-b border-white/5 text-xs uppercase tracking-wider text-muted font-bold">
                                 <tr>
                                     <th className="px-6 py-5">Order ID</th>
-                                    <th className="px-6 py-5">Time</th>
+                                    <th className="px-6 py-5">Ordered</th>
+                                    <th className="px-6 py-5">Delivered</th>
                                     <th className="px-6 py-5">Customer</th>
                                     <th className="px-6 py-5">Restaurant Contact</th>
                                     <th className="px-6 py-5">Status</th>
-                                    <th className="px-6 py-5">Amount</th>
                                     <th className="px-6 py-5 text-right">Action</th>
                                 </tr>
                             </thead>
@@ -130,7 +130,30 @@ export const AdminOrders = () => {
                                         className="hover:bg-white/[0.03] transition-colors cursor-pointer group"
                                     >
                                         <td className="px-6 py-4 font-mono text-xs text-white">#{order.id.slice(0, 8).toUpperCase()}</td>
-                                        <td className="px-6 py-4 text-muted">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-white font-medium">
+                                                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                                <span className="text-[10px] uppercase font-bold text-accent/80">
+                                                    {new Date(order.created_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {order.delivered_at ? (
+                                                <div className="flex flex-col">
+                                                    <span className="text-white font-medium">
+                                                        {new Date(order.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                    <span className="text-[10px] uppercase font-bold text-green-400">
+                                                        {new Date(order.delivered_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(order.delivered_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted">---</span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 font-medium">{order.profiles?.full_name || 'Guest User'}</td>
                                         <td className="px-6 py-4">
                                             <p className="text-white font-medium">{order.restaurants?.name || 'Unknown Store'}</p>
@@ -139,7 +162,6 @@ export const AdminOrders = () => {
                                         <td className="px-6 py-4">
                                             <StatusPill status={order.status} />
                                         </td>
-                                        <td className="px-6 py-4 font-bold text-green-400">${order.pricing?.total?.toFixed(2) || '0.00'}</td>
                                         <td className="px-6 py-4 text-right">
                                             <button className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-white/5 group-hover:bg-accent group-hover:text-white transition-colors text-muted">
                                                 <ChevronRight size={16} />
@@ -167,7 +189,28 @@ export const AdminOrders = () => {
                         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                             <div>
                                 <h2 className="text-xl font-black font-mono">#{selectedOrder.id.slice(0, 8).toUpperCase()}</h2>
-                                <p className="text-xs text-muted">{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                                <div className="flex gap-6 mt-1">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-muted uppercase tracking-widest font-bold">Ordered:</span>
+                                        <span className="text-xs text-white">
+                                            {new Date(selectedOrder.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            <span className="ml-1 opacity-70 text-[10px]">
+                                                ({new Date(selectedOrder.created_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(selectedOrder.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })})
+                                            </span>
+                                        </span>
+                                    </div>
+                                    {selectedOrder.delivered_at && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-green-400 uppercase tracking-widest font-bold">Delivered:</span>
+                                            <span className="text-xs text-white">
+                                                {new Date(selectedOrder.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                <span className="ml-1 opacity-70 text-[10px]">
+                                                    ({new Date(selectedOrder.delivered_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(selectedOrder.delivered_at).toLocaleDateString([], { month: 'short', day: 'numeric' })})
+                                                </span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <button
                                 onClick={() => setSelectedOrder(null)}
@@ -278,12 +321,49 @@ export const AdminOrders = () => {
                                 </div>
                             </div>
 
-                            {/* Financials Section */}
                             <div className="space-y-3">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-muted">Order Total</h3>
-                                <div className="p-5 rounded-xl border border-white/5 bg-white/[0.02]">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-medium text-muted">Total Amount</span>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-muted">Financial Breakdown</h3>
+                                <div className="p-5 rounded-xl border border-white/5 bg-white/[0.02] space-y-4">
+                                    <div className="flex justify-between items-center text-sm text-muted">
+                                        <span>Subtotal</span>
+                                        <span className="text-white">${selectedOrder.pricing?.subtotal?.toFixed(2) || '0.00'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-muted">
+                                        <span>Delivery Fee</span>
+                                        <div className="text-right">
+                                            <span className="text-white">${selectedOrder.pricing?.delivery_fee?.toFixed(2) || '0.00'}</span>
+                                            {selectedOrder.pricing?.surge_applied > 0 && (
+                                                <p className="text-[10px] text-accent font-bold">Incl. ${selectedOrder.pricing.surge_applied.toFixed(2)} Surge</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm text-muted">
+                                        <span>Service Fee</span>
+                                        <span className="text-white">${selectedOrder.pricing?.service_fee?.toFixed(2) || '0.50'}</span>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-white/5 space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-blue-400 font-bold uppercase text-[10px] tracking-wider">Driver Payout</span>
+                                            <div className="text-right">
+                                                <span className="text-blue-400 font-bold">${selectedOrder.pricing?.driver_earnings?.toFixed(2) || '0.00'}</span>
+                                                {selectedOrder.pricing?.driver_bonus_applied > 0 && (
+                                                    <p className="text-[10px] text-green-400 font-bold font-mono">+${selectedOrder.pricing.driver_bonus_applied.toFixed(2)} Bonus</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-accent font-bold uppercase text-[10px] tracking-wider">Appetite Margin</span>
+                                            <span className="text-white font-bold">
+                                                ${(selectedOrder.pricing?.appetite_margin ||
+                                                    (selectedOrder.pricing?.delivery_fee - selectedOrder.pricing?.driver_earnings + (selectedOrder.pricing?.service_fee || 0.5))
+                                                ).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                                        <span className="text-sm font-bold text-white uppercase tracking-tighter">Order Total</span>
                                         <span className="text-2xl font-black text-green-400">${selectedOrder.pricing?.total?.toFixed(2) || '0.00'}</span>
                                     </div>
                                 </div>

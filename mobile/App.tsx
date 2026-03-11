@@ -39,8 +39,8 @@ export default function App() {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator color={theme.accent} size="large" />
+            <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator color={Colors.dark.accent} size="large" />
             </View>
         );
     }

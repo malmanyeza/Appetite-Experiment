@@ -1,0 +1,84 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+
+// Helper: convert ArrayBuffer to uppercase hex string
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+}
+
+Deno.serve(async (req: Request) => {
+  try {
+    const textBody = await req.text();
+    const params = new URLSearchParams(textBody);
+    
+    // Map params to a dictionary
+    const data: Record<string, string> = {};
+    for (const [key, val] of params.entries()) {
+        data[key] = val;
+    }
+
+    const hashReceived = data['hash'];
+    if (!hashReceived) throw new Error('Missing Hash');
+    
+    delete data['hash'];
+
+    const integrationKey = Deno.env.get('PAYNOW_INTEGRATION_KEY') || '';
+
+    const sortedKeys = Object.keys(data).sort();
+    let hashString = "";
+    for (const k of sortedKeys) {
+        hashString += data[k];
+    }
+    hashString += integrationKey;
+
+    const encoder = new TextEncoder();
+    const hashData = encoder.encode(hashString);
+    const hashBuffer = await crypto.subtle.digest('SHA-512', hashData);
+    const hashCalculated = toHex(hashBuffer);
+
+    // Verify hash
+    if (hashCalculated !== hashReceived) {
+        throw new Error('Hash Mismatch - Potential tampering');
+    }
+
+    // Hash is valid, process payment status
+    const status = data['status'];
+    const orderId = data['reference'];
+    const paynowReference = data['paynowreference'];
+
+    const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: order } = await supabaseAdmin.from('orders').select('*').eq('id', orderId).single();
+    if (!order) throw new Error('Order not found in database');
+
+    let paymentStatus = order.payment.status;
+
+    if (status === 'Paid' || status === 'Awaiting Delivery' || status === 'Delivered') {
+        paymentStatus = 'paid';
+    } else if (status === 'Cancelled' || status === 'Failed') {
+        paymentStatus = 'failed';
+    }
+
+    await supabaseAdmin.from('orders').update({
+        payment: {
+            ...order.payment,
+            status: paymentStatus,
+            gateway_reference: paynowReference,
+            paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null
+        }
+    }).eq('id', orderId);
+
+    return new Response('', { status: 200 }); 
+
+  } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('paynow_webhook error:', message);
+      return new Response(message, { status: 400 });
+  }
+});

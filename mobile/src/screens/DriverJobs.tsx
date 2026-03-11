@@ -30,6 +30,39 @@ export const DriverJobs = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [locationSubscription, setLocationSubscription] = useState<ExpoLocation.LocationSubscription | null>(null);
 
+    // Fetch Dynamic Payout Settings
+    const { data: deliveryConfig } = useQuery({
+        queryKey: ['delivery_config'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('system_settings').select('value').eq('key', 'delivery_fee_config').single();
+            if (error) throw error;
+            return data?.value || { driver_base: 1.2, driver_per_km: 0.3, driver_bonus: 0 };
+        }
+    });
+
+    useEffect(() => {
+        const channel = supabase
+            .channel('driver_settings_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'system_settings',
+                    filter: "key=eq.delivery_fee_config"
+                },
+                () => {
+                    queryClient.invalidateQueries({ queryKey: ['delivery_config'] });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [queryClient]);
+
+
     // 1. GPS Heartbeat Active Polling
     const startLocationTracking = async () => {
         try {
@@ -322,8 +355,25 @@ export const DriverJobs = () => {
                                     <View>
                                         <Text style={[styles.orderId, { color: theme.textMuted }]}>Order #{job.id.slice(0, 8)}</Text>
                                         <Text style={[styles.jobStatus, { color: theme.accent, fontWeight: 'bold' }]}>{job.status.replace('_', ' ').toUpperCase()}</Text>
+                                        <Text style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>
+                                            Ordered: {new Date(job.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            <Text style={{ fontSize: 9, opacity: 0.7 }}>
+                                                {" "}({new Date(job.created_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(job.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })})
+                                            </Text>
+                                        </Text>
                                     </View>
-                                    <Text style={[styles.payout, { color: '#22C55E' }]}>Est. $2.50</Text>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <Text style={[styles.payout, { color: '#22C55E' }]}>
+                                            Est. ${(job.pricing?.driver_earnings ||
+                                                ((Number(deliveryConfig?.driver_base) || 1.20) +
+                                                    ((Number(deliveryConfig?.driver_per_km) || 0.30) * (job.pricing?.distance_km || 0)) +
+                                                    (Number(deliveryConfig?.driver_bonus) || 0))
+                                            ).toFixed(2)}
+                                        </Text>
+                                        {job.pricing?.driver_bonus_applied > 0 && (
+                                            <Text style={{ fontSize: 9, color: '#22C55E', fontWeight: 'bold' }}>+${job.pricing.driver_bonus_applied.toFixed(2)} BONUS</Text>
+                                        )}
+                                    </View>
                                 </View>
 
                                 <View style={styles.addressSection}>

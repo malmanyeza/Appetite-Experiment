@@ -48,7 +48,7 @@ export const DeliveryCompleted = () => {
                         <Text style={[styles.earningsText, { color: theme.text }]}>Earnings</Text>
                     </View>
                     <Text style={[styles.amount, { color: theme.text }]}>
-                        ${((order.pricing?.total || 0) * 0.15).toFixed(2)} {/* Null-safe calculation */}
+                        ${(order.pricing?.driver_earnings || order.pricing?.driverEarnings || 0).toFixed(2)}
                     </Text>
                 </View>
 

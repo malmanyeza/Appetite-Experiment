@@ -44,9 +44,13 @@ export const ActiveDelivery = () => {
 
     const updateStatusMutation = useMutation({
         mutationFn: async (newStatus: string) => {
+            const updates: any = { status: newStatus };
+            if (newStatus === 'delivered') {
+                updates.delivered_at = new Date().toISOString();
+            }
             const { error } = await supabase
                 .from('orders')
-                .update({ status: newStatus })
+                .update(updates)
                 .eq('id', orderId);
             if (error) throw error;
             return newStatus;
@@ -156,6 +160,13 @@ export const ActiveDelivery = () => {
                                 <Text style={[styles.summaryTitle, { color: theme.text }]}>Order #{order.id.slice(0, 6).toUpperCase()}</Text>
                                 <Text style={[styles.summaryTitle, { color: theme.textMuted, marginLeft: 8 }]}>
                                     • {order.order_items?.reduce((sum: number, item: any) => sum + item.qty, 0) || 0} items
+                                </Text>
+                            </View>
+
+                            <View style={{ marginTop: 12, padding: 12, backgroundColor: theme.surface, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: '#22c55e' }}>
+                                <Text style={{ fontSize: 12, color: theme.textMuted }}>YOUR PAYOUT</Text>
+                                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#22c55e' }}>
+                                    ${(order.pricing?.driver_earnings || order.pricing?.driverEarnings || 0).toFixed(2)}
                                 </Text>
                             </View>
                         </View>

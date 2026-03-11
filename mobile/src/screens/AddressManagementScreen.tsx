@@ -33,6 +33,7 @@ export const AddressManagementScreen = ({ navigation }: any) => {
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [isDefault, setIsDefault] = useState(false);
     const [showCityPicker, setShowCityPicker] = useState(false);
+    const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
     const cities = ['Harare', 'Bulawayo', 'Mutare', 'Gweru', 'Kwekwe', 'Chitungwiza'];
 
@@ -80,11 +81,12 @@ export const AddressManagementScreen = ({ navigation }: any) => {
 
     const handleUseCurrentLocation = async () => {
         try {
-            // Check if expo-location is available
+            setIsFetchingLocation(true);
             const Location = require('expo-location');
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'Location permission is required for this bonus feature.');
+                Alert.alert('Permission Denied', 'Location permission is required.');
+                setIsFetchingLocation(false);
                 return;
             }
 
@@ -93,10 +95,11 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                 lat: location.coords.latitude,
                 lng: location.coords.longitude
             });
-            Alert.alert('GPS Pin Saved', 'Accuracy pin added. Please still verify your Suburb and Landmark notes!');
+            setIsFetchingLocation(false);
         } catch (error) {
-            console.warn('GPS logic failed, possible missing dependencies:', error);
-            Alert.alert('Location Feature', 'GPS accuracy is a bonus! Please ensure your Suburb and Landmarks are accurate first.');
+            console.warn('GPS logic failed:', error);
+            setIsFetchingLocation(false);
+            Alert.alert('Location Error', 'Could not access GPS. Please ensure location services are enabled.');
         }
     };
 
@@ -111,12 +114,8 @@ export const AddressManagementScreen = ({ navigation }: any) => {
     };
 
     const handleAddAddress = () => {
-        if (!suburb.trim() || !landmark.trim()) {
-            Alert.alert('Required Fields', 'Suburb and Landmark Notes are required for successful delivery in Zimbabwe.');
-            return;
-        }
         if (!coords?.lat || !coords?.lng) {
-            Alert.alert('Location Required', 'You must tap "Use Current Location (GPS)" to drop a precise pin for this address before saving.');
+            Alert.alert('Location Required', 'You must tap "Use Current Location (GPS)" to save the exact address coordinates.');
             return;
         }
         addAddressMutation.mutate({
@@ -261,7 +260,7 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                                 onChangeText={setStreet}
                             />
                             <TextInput
-                                placeholder="Landmark Notes (Required: Blue gate, Near shop...)"
+                                placeholder="Landmark Notes (Optional: Blue gate...)"
                                 placeholderTextColor={theme.textMuted}
                                 style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
                                 value={landmark}
@@ -270,11 +269,20 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                             />
 
                             <TouchableOpacity
-                                style={[styles.gpsButton, { borderColor: theme.accent }]}
+                                style={[styles.gpsButton, { borderColor: coords ? '#10B981' : theme.accent }]}
                                 onPress={handleUseCurrentLocation}
+                                disabled={isFetchingLocation || !!coords}
                             >
-                                <MapPin size={20} color={theme.accent} />
-                                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Use Current Location (GPS)</Text>
+                                {isFetchingLocation ? (
+                                    <ActivityIndicator size="small" color={theme.accent} />
+                                ) : coords ? (
+                                    <CheckCircle2 size={20} color="#10B981" />
+                                ) : (
+                                    <MapPin size={20} color={theme.accent} />
+                                )}
+                                <Text style={{ color: coords ? '#10B981' : theme.accent, fontWeight: 'bold' }}>
+                                    {isFetchingLocation ? 'Acquiring GPS...' : coords ? 'GPS Location Captured' : 'Use Current Location (GPS)'}
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity

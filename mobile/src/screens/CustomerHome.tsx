@@ -20,15 +20,20 @@ import * as ExpoLocation from 'expo-location';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { Search, MapPin, ChevronRight, Filter } from 'lucide-react-native';
+import { Search, MapPin, ChevronRight, Filter, X, CheckCircle2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 export const CustomerHome = ({ navigation }: any) => {
     const { theme, isDark } = useTheme();
     const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
     const [searchQuery, setSearchQuery] = React.useState('');
     const [locationModalVisible, setLocationModalVisible] = React.useState(false);
-    const [currentLocation, setCurrentLocation] = React.useState('Harare');
-    const [tempLocation, setTempLocation] = React.useState('');
+    const [currentLocation, setCurrentLocation] = React.useState<string | null>(null);
+    const [city, setCity] = React.useState('');
+    const [suburb, setSuburb] = React.useState('');
+    const [street, setStreet] = React.useState('');
+    const [landmark, setLandmark] = React.useState('');
+    const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
+    const [modalLocationFetched, setModalLocationFetched] = React.useState(false);
 
     // Strict MVP Location Enforcement
     const [hasLocationPermission, setHasLocationPermission] = React.useState<boolean | null>(null);
@@ -93,14 +98,13 @@ export const CustomerHome = ({ navigation }: any) => {
                 result = result.filter((r: any) => r.categories && r.categories.includes(selectedCategory));
             }
             return result;
-        },
-        enabled: hasLocationPermission === true
+        }
     });
 
     const filteredRestaurants = React.useMemo(() => {
         if (!restaurants) return [];
         if (!searchQuery) return restaurants;
-        return restaurants.filter(r =>
+        return restaurants.filter((r: any) =>
             r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             r.categories.some((c: string) => c.toLowerCase().includes(searchQuery.toLowerCase()))
         );
@@ -109,41 +113,6 @@ export const CustomerHome = ({ navigation }: any) => {
     React.useEffect(() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     }, [filteredRestaurants, selectedCategory]);
-
-    // Mandatory GPS Lock Screen
-    if (hasLocationPermission === null) {
-        return (
-            <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={theme.accent} />
-                <Text style={{ color: theme.textMuted, marginTop: 16 }}>Loading location services...</Text>
-            </View>
-        );
-    }
-
-    if (hasLocationPermission === false) {
-        return (
-            <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-                <MapPin size={64} color={theme.accent} style={{ marginBottom: 24 }} />
-                <Text style={[{ color: theme.text, fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 12 }]}>Location Required</Text>
-                <Text style={{ color: theme.textMuted, textAlign: 'center', lineHeight: 24, fontSize: 16, marginBottom: 32 }}>
-                    Appetite requires your device's location to accurately show you the closest restaurants, calculate precise delivery ETAs, and dispatch drivers securely.
-                </Text>
-                <TouchableOpacity
-                    style={{ backgroundColor: theme.accent, paddingVertical: 16, paddingHorizontal: 32, rounded: 16, borderRadius: 16, width: '100%', alignItems: 'center' }}
-                    onPress={async () => {
-                        const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-                        if (status === 'granted') {
-                            setHasLocationPermission(true);
-                            const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
-                            setUserCoordinates({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-                        }
-                    }}
-                >
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Enable Location Access</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -154,16 +123,21 @@ export const CustomerHome = ({ navigation }: any) => {
                     <TouchableOpacity
                         style={styles.locationSelector}
                         onPress={() => {
-                            setTempLocation(currentLocation);
+                            setModalLocationFetched(false);
                             setLocationModalVisible(true);
                         }}
                     >
                         <MapPin size={16} color={theme.accent} />
-                        <Text style={[styles.locationText, { color: theme.text }]}>{currentLocation}</Text>
+                        <Text style={[styles.locationText, { color: theme.text }]}>
+                            {currentLocation ? currentLocation : 'Pick Location...'}
+                        </Text>
                         <ChevronRight size={16} color={theme.textMuted} />
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.profileButton, { backgroundColor: theme.surface }]}>
+                <TouchableOpacity
+                    style={[styles.profileButton, { backgroundColor: theme.surface }]}
+                    onPress={() => navigation.navigate('Account')}
+                >
                     <Text style={{ color: theme.text }}>👤</Text>
                 </TouchableOpacity>
             </View>
@@ -233,7 +207,7 @@ export const CustomerHome = ({ navigation }: any) => {
                         <Text style={{ color: theme.textMuted }}>No results found.</Text>
                     </View>
                 ) : (
-                    filteredRestaurants.map((item) => (
+                    filteredRestaurants.map((item: any) => (
                         <TouchableOpacity
                             key={item.id}
                             style={[styles.restaurantCard, { backgroundColor: theme.surface }]}
@@ -267,51 +241,102 @@ export const CustomerHome = ({ navigation }: any) => {
             <Modal
                 visible={locationModalVisible}
                 animationType="slide"
-                transparent={true}
+                transparent={false}
             >
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.modalOverlay}
+                    style={{ flex: 1, backgroundColor: theme.background }}
                 >
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)', width: '100%' }]}>
-                            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                                <View style={styles.modalHeader}>
-                                    <Text style={[styles.modalTitle, { color: theme.text }]}>Delivery Location</Text>
-                                    <TouchableOpacity onPress={() => setLocationModalVisible(false)}>
-                                        <Text style={{ color: theme.textMuted }}>Close</Text>
-                                    </TouchableOpacity>
-                                </View>
+                    <View style={{ flex: 1, paddingTop: 60, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                            <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.text }}>Delivery Location</Text>
+                            <TouchableOpacity onPress={() => setLocationModalVisible(false)} style={{ padding: 8 }}>
+                                <X size={24} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
 
-                                <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
-                                    Enter your precise address or suburb for delivery
-                                </Text>
+                        <Text style={{ fontSize: 16, color: theme.textMuted, marginBottom: 24 }}>
+                            Enter your precise address or suburb for delivery
+                        </Text>
 
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={{ gap: 16, paddingBottom: 100 }}>
                                 <TextInput
-                                    style={[styles.locationInput, { backgroundColor: theme.surface, color: theme.text }]}
-                                    placeholder="e.g. 15 Borrowdale Road, Harare"
+                                    placeholder="City (e.g., Harare)"
                                     placeholderTextColor={theme.textMuted}
-                                    value={tempLocation}
-                                    onChangeText={setTempLocation}
-                                    returnKeyType="done"
-                                    onSubmitEditing={Keyboard.dismiss}
-                                    autoFocus
+                                    style={{ backgroundColor: theme.surface, color: theme.text, borderRadius: 16, padding: 16, fontSize: 16 }}
+                                    value={city}
+                                    onChangeText={setCity}
+                                />
+                                <TextInput
+                                    placeholder="Suburb (e.g. Avondale, CBD)"
+                                    placeholderTextColor={theme.textMuted}
+                                    style={{ backgroundColor: theme.surface, color: theme.text, borderRadius: 16, padding: 16, fontSize: 16 }}
+                                    value={suburb}
+                                    onChangeText={setSuburb}
+                                />
+                                <TextInput
+                                    placeholder="Street Name (Optional)"
+                                    placeholderTextColor={theme.textMuted}
+                                    style={{ backgroundColor: theme.surface, color: theme.text, borderRadius: 16, padding: 16, fontSize: 16 }}
+                                    value={street}
+                                    onChangeText={setStreet}
+                                />
+                                <TextInput
+                                    placeholder="Landmark Notes (Optional: Blue gate, Near shop...)"
+                                    placeholderTextColor={theme.textMuted}
+                                    style={{ backgroundColor: theme.surface, color: theme.text, borderRadius: 16, padding: 16, fontSize: 16, minHeight: 100 }}
+                                    value={landmark}
+                                    onChangeText={setLandmark}
+                                    multiline
+                                    textAlignVertical="top"
                                 />
 
                                 <TouchableOpacity
-                                    style={[styles.saveLocationBtn, { backgroundColor: theme.accent }]}
-                                    onPress={() => {
-                                        if (tempLocation.trim()) {
-                                            setCurrentLocation(tempLocation.trim());
+                                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 1, borderColor: modalLocationFetched ? '#10B981' : theme.accent, borderRadius: 16, justifyContent: 'center', gap: 8, marginTop: 16 }}
+                                    onPress={async () => {
+                                        setIsFetchingLocation(true);
+                                        const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+                                        if (status === 'granted') {
+                                            const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+                                            setUserCoordinates({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+                                            setModalLocationFetched(true);
+                                        } else {
+                                            Alert.alert('Permission Denied', 'Location permission is required.');
                                         }
+                                        setIsFetchingLocation(false);
+                                    }}
+                                    disabled={isFetchingLocation || modalLocationFetched}
+                                >
+                                    {isFetchingLocation ? (
+                                        <ActivityIndicator size="small" color={theme.accent} />
+                                    ) : modalLocationFetched ? (
+                                        <CheckCircle2 size={20} color="#10B981" />
+                                    ) : (
+                                        <MapPin size={20} color={theme.accent} />
+                                    )}
+                                    <Text style={{ color: modalLocationFetched ? '#10B981' : theme.accent, fontWeight: 'bold' }}>
+                                        {isFetchingLocation ? 'Acquiring GPS...' : modalLocationFetched ? 'GPS Pin Captured' : 'Use Current Location (GPS)'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={{ backgroundColor: theme.accent, padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 16 }}
+                                    onPress={() => {
+                                        if (!modalLocationFetched) {
+                                            Alert.alert('Location Required', 'Please tap "Use Current Location (GPS)" to confirm your exact delivery coordinates.');
+                                            return;
+                                        }
+                                        const finalLoc = [suburb.trim(), city.trim()].filter(Boolean).join(', ');
+                                        setCurrentLocation(finalLoc || 'Current Location');
                                         setLocationModalVisible(false);
                                     }}
                                 >
-                                    <Text style={styles.saveLocationBtnText}>Confirm Location</Text>
+                                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>Confirm Location</Text>
                                 </TouchableOpacity>
                             </View>
-                        </View>
-                    </TouchableWithoutFeedback>
+                        </ScrollView>
+                    </View>
                 </KeyboardAvoidingView>
             </Modal>
         </View>

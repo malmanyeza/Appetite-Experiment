@@ -106,9 +106,26 @@ export const OrdersScreen = ({ navigation }: any) => {
                     <Text style={[styles.restaurantName, { color: theme.text }]}>
                         {item.restaurants?.name}
                     </Text>
-                    <Text style={[styles.orderDate, { color: theme.textMuted }]}>
-                        {formatDate(item.created_at)}
-                    </Text>
+                    <View>
+                        <Text style={[styles.orderDate, { color: theme.text, fontWeight: 'bold' }]}>
+                            Ordered: {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                        <View style={{ backgroundColor: theme.surface, alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 2 }}>
+                            <Text style={{ color: theme.accent, fontSize: 10, fontWeight: 'bold' }}>
+                                {new Date(item.created_at).toDateString() === new Date().toDateString() ? 'TODAY' : new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </Text>
+                        </View>
+                    </View>
+                    {item.delivered_at && (
+                        <View>
+                            <Text style={[styles.orderDate, { color: '#10B981', fontWeight: 'bold' }]}>
+                                Delivered: {new Date(item.delivered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                            <Text style={[styles.orderDate, { color: '#059669', fontSize: 10, marginTop: -2 }]}>
+                                {new Date(item.delivered_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(item.delivered_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </Text>
+                        </View>
+                    )}
                 </View>
                 <ChevronRight size={20} color={theme.textMuted} />
             </View>
