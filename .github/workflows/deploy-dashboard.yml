@@ -7,6 +7,9 @@ on:
       - 'dashboard/**'
       - '.github/workflows/deploy-dashboard.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
