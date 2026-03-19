@@ -4,6 +4,8 @@ node_modules/
 .expo/
 dist/
 build/
+mobile/android/.gradle/
+mobile/android/build/
 .DS_Store
 *.log
 GoogleService-Info.plist
