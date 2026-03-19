@@ -203,7 +203,7 @@ export const RestaurantSettings = () => {
             (position) => {
                 const { latitude, longitude } = position.coords;
                 if (forNewRest) {
-                    setRegistrationData(prev => ({ ...prev, lat: latitude, lng: longitude }));
+                    setRegistrationData((prev: any) => ({ ...prev, lat: latitude, lng: longitude }));
                 } else {
                     updateRestaurant.mutate({ lat: latitude, lng: longitude });
                 }
@@ -385,7 +385,7 @@ export const RestaurantSettings = () => {
                                                 step="any" 
                                                 required 
                                                 value={restaurant?.lat || 0} 
-                                                onChange={(e) => updateRestaurant.mutate({ lat: parseFloat(e.target.value) })}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRestaurant.mutate({ lat: parseFloat(e.target.value) })}
                                                 placeholder="-17.82..." 
                                             />
                                             <InputField 
@@ -395,7 +395,7 @@ export const RestaurantSettings = () => {
                                                 step="any" 
                                                 required 
                                                 value={restaurant?.lng || 0} 
-                                                onChange={(e) => updateRestaurant.mutate({ lng: parseFloat(e.target.value) })}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRestaurant.mutate({ lng: parseFloat(e.target.value) })}
                                                 placeholder="31.05..." 
                                             />
                                         </div>
@@ -691,8 +691,8 @@ export const RestaurantSettings = () => {
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <InputField label="Latitude" name="lat" type="number" step="any" required value={registrationData.lat || ''} onChange={(e) => setRegistrationData({ ...registrationData, lat: e.target.value })} placeholder="-17.82..." />
-                                <InputField label="Longitude" name="lng" type="number" step="any" required value={registrationData.lng || ''} onChange={(e) => setRegistrationData({ ...registrationData, lng: e.target.value })} placeholder="31.05..." />
+                                <InputField label="Latitude" name="lat" type="number" step="any" required value={registrationData.lat || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRegistrationData({ ...registrationData, lat: e.target.value })} placeholder="-17.82..." />
+                                <InputField label="Longitude" name="lng" type="number" step="any" required value={registrationData.lng || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRegistrationData({ ...registrationData, lng: e.target.value })} placeholder="31.05..." />
                             </div>
                             <MapPicker 
                                 lat={registrationData.lat} 
