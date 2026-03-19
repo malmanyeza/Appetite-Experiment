@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -56,7 +56,7 @@ const RoleRedirect = () => {
 function App() {
     return (
         <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
+            <HashRouter>
                 <Routes>
                     <Route path="/login" element={<LoginPage />} />
 
@@ -94,7 +94,7 @@ function App() {
 
                     <Route path="/" element={<RoleRedirect />} />
                 </Routes>
-            </BrowserRouter>
+            </HashRouter>
         </QueryClientProvider>
     );
 }
