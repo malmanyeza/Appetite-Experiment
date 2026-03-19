@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from './supabase';
+import { supabase } from './supabase';
 
 export const ordersService = {
     async getRestaurantOrders(restaurantId: string) {
