@@ -83,10 +83,10 @@ export const restaurantService = {
     },
 
     async getAllRestaurants() {
-        // ... keeps existing logic for admin/public use
+        // Fetch all restaurants with their total order count
         const { data, error } = await supabase
             .from('restaurants')
-            .select('*')
+            .select('*, orders:orders(count)')
             .order('name');
         if (error) throw error;
         return data;

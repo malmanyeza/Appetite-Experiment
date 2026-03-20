@@ -95,8 +95,7 @@ export const AdminRestaurants = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 font-medium text-white">
-                                        {/* Mock Data */}
-                                        1,240
+                                        {(rest.orders?.[0]?.count || 0).toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
