@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'r
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
 import { DashboardLayout } from './layouts/DashboardLayout';
+import { PushNotificationManager } from './components/PushNotificationManager';
 
 // Pages
 import { Overview } from './pages/Overview';
@@ -63,6 +64,7 @@ function App() {
                     <Route path="/restaurant/*" element={
                         <ProtectedRoute allowedRoles={['restaurant', 'admin']}>
                             <DashboardLayout>
+                                <PushNotificationManager />
                                 <Routes>
                                     <Route path="overview" element={<Overview />} />
                                     <Route path="orders" element={<RestaurantOrders />} />
@@ -77,6 +79,7 @@ function App() {
                     <Route path="/admin/*" element={
                         <ProtectedRoute allowedRoles={['admin']}>
                             <DashboardLayout>
+                                <PushNotificationManager />
                                 <Routes>
                                     <Route index element={<Overview />} />
                                     <Route path="orders" element={<AdminOrders />} />

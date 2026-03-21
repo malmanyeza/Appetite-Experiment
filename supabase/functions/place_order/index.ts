@@ -41,6 +41,7 @@ Deno.serve(async (req: Request) => {
           global: { headers: { Authorization: `Bearer ${jwt}` } }
         });
 
+    const body = await req.json();
     const { items, address, paymentMethod, restaurantId, locationId } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -51,7 +52,8 @@ Deno.serve(async (req: Request) => {
     if (!address) throw new Error('Delivery address is required.');
 
     // Fetch master prices to prevent tampering
-    const itemIds = items.map((i: any) => i.menu_item_id || i.id);
+    const cleanId = (id: string) => id.length > 36 ? id.substring(0, 36) : id;
+    const itemIds = items.map((i: any) => cleanId(i.menu_item_id || i.id));
     const { data: menuItems, error: menuError } = await adminClient
       .from('menu_items')
       .select('*')
@@ -62,7 +64,7 @@ Deno.serve(async (req: Request) => {
 
     let subtotal = 0;
     const finalItemsToInsert = items.map((item: any) => {
-        const menuItemId = item.menu_item_id || item.id;
+        const menuItemId = cleanId(item.menu_item_id || item.id);
         const dbItem = (menuItems as any[]).find((m: any) => m.id === menuItemId);
         if (!dbItem) throw new Error(`Menu item ${menuItemId} not found in database.`);
         

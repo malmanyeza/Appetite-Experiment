@@ -93,13 +93,22 @@ export const CartScreen = ({ navigation }: any) => {
         if (ecocashPending && pendingOrderId) {
             interval = setInterval(async () => {
                 try {
-                    const { data, error } = await supabase
-                        .from('orders')
-                        .select('payment')
-                        .eq('id', pendingOrderId)
-                        .single();
+                    const session = (await supabase.auth.getSession()).data.session;
+                    if (!session) return;
+                    
+                    const response = await fetch(`${supabaseUrl}/functions/v1/check_payment_status`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`,
+                            'apikey': supabaseAnonKey,
+                        },
+                        body: JSON.stringify({ orderId: pendingOrderId })
+                    });
+                    
+                    const result = await response.json();
                         
-                    if (data?.payment?.status === 'paid') {
+                    if (result?.status === 'paid') {
                         clearInterval(interval);
                         setEcocashPending(false);
                         setPendingOrderId(null);
@@ -107,7 +116,7 @@ export const CartScreen = ({ navigation }: any) => {
                         clearCart();
                         navigation.navigate('Home', { screen: 'HomeMain' });
                         navigation.navigate('Tracking', { screen: 'TrackingMain', params: { orderId: pendingOrderId } });
-                    } else if (data?.payment?.status === 'failed' || data?.payment?.status === 'cancelled') {
+                    } else if (result?.status === 'failed' || result?.status === 'cancelled') {
                         clearInterval(interval);
                         setEcocashPending(false);
                         setPendingOrderId(null);
@@ -115,7 +124,7 @@ export const CartScreen = ({ navigation }: any) => {
                         Alert.alert('Payment Failed', 'Your payment failed or was cancelled. Please try again.');
                     }
                 } catch (err) {
-                    console.error('Polling error:', err);
+                    console.log('Polling error:', err);
                 }
             }, 3000);
         }
@@ -243,7 +252,7 @@ export const CartScreen = ({ navigation }: any) => {
                     'apikey': supabaseAnonKey,
                 },
                 body: JSON.stringify({
-                    items: items.map((item: any) => ({ id: item.id, qty: item.qty })),
+                    items: items.map((item: any) => ({ id: item.id, menu_item_id: item.menu_item_id, qty: item.qty, selected_add_ons: item.selected_add_ons })),
                     address: {
                         label: selectedAddress.label,
                         city: selectedAddress.city,
@@ -382,7 +391,7 @@ export const CartScreen = ({ navigation }: any) => {
             navigation.navigate('Home', { screen: 'HomeMain' });
             navigation.navigate('Tracking', { screen: 'TrackingMain', params: { orderId: data.orderId } });
         } catch (error: any) {
-            console.error('Checkout Error:', error);
+            console.log('Checkout Error:', error);
             Alert.alert('Checkout Error', error.message || 'Failed to process order.');
         } finally {
             setLoading(false);
@@ -723,7 +732,7 @@ export const CartScreen = ({ navigation }: any) => {
                                                     Alert.alert('Permission Denied', 'Location permission is required.');
                                                 }
                                             } catch (error) {
-                                                console.error('GPS Error:', error);
+                                                console.log('GPS Error:', error);
                                             } finally {
                                                 setIsFetchingLocation(false);
                                             }
@@ -809,6 +818,14 @@ export const CartScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Full Screen Loading Overlay */}
+            <Modal transparent visible={loading} animationType="fade">
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
+                    <ActivityIndicator size="large" color={theme.accent} />
+                    <Text style={{ marginTop: 16, color: '#FFF', fontSize: 18, fontWeight: 'bold' }}>Processing Payment...</Text>
+                </View>
             </Modal>
         </KeyboardAvoidingView>
     );
