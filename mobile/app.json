@@ -2,7 +2,7 @@
   "expo": {
     "name": "Appetite",
     "slug": "appetite-mobile",
-    "version": "1.1.6",
+    "version": "1.1.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -73,7 +73,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "22813964-fb96-49d1-aae2-a5a1449bb5a7"
+        "projectId": "ec762e78-887d-459c-93d5-1a82a4e2ee31"
       }
     }
   }

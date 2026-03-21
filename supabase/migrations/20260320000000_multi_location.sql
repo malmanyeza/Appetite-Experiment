@@ -23,7 +23,7 @@ ALTER TABLE public.restaurant_locations ENABLE ROW LEVEL SECURITY;
 -- RLS Policies for restaurant_locations
 CREATE POLICY "Public can view locations" ON public.restaurant_locations FOR SELECT USING (true);
 CREATE POLICY "Owners can manage their locations" ON public.restaurant_locations FOR ALL USING (
-  EXISTS (SELECT 1 FROM public.restaurants r WHERE r.id = restaurant_id AND r.owner_user_id = auth.uid())
+  EXISTS (SELECT 1 FROM public.restaurants r WHERE r.id = restaurant_id AND r.manager_id = auth.uid())
 );
 
 -- Create location_menu_items table
@@ -43,7 +43,7 @@ CREATE POLICY "Owners can manage location menu items" ON public.location_menu_it
   EXISTS (
     SELECT 1 FROM public.restaurant_locations rl
     JOIN public.restaurants r ON rl.restaurant_id = r.id
-    WHERE rl.id = location_id AND r.owner_user_id = auth.uid()
+    WHERE rl.id = location_id AND r.manager_id = auth.uid()
   )
 );
 

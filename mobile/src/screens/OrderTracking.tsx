@@ -455,12 +455,6 @@ export const OrderTracking = ({ route, navigation }: any) => {
                 </View>
             </View>
 
-            <TouchableOpacity
-                style={[styles.backButton, { borderTopColor: theme.border }]}
-                onPress={() => navigation.navigate('Home')}
-            >
-                <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Back to Home</Text>
-            </TouchableOpacity>
 
             {/* Live Map Overlay */}
             <Animated.View style={[
@@ -607,7 +601,6 @@ const styles = StyleSheet.create({
         marginTop: 12,
         flexWrap: 'wrap'
     },
-    backButton: { padding: 20, alignItems: 'center', borderTopWidth: 1 },
     emptyIconContainer: {
         width: 140,
         height: 140,

@@ -11,7 +11,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { ChevronLeft, Share2, Info, Plus, Minus, X, Check, MapPin } from 'lucide-react-native';
+import { ChevronLeft, Share2, Info, Plus, Minus, X, Check, MapPin, Clock } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useCartStore } from '../store/cartStore';
 
@@ -23,30 +23,41 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
     const [selectedItemForOptions, setSelectedItemForOptions] = useState<any>(null);
     const [tempSelectedAddons, setTempSelectedAddons] = useState<any[]>([]);
 
-    const { data: locationData, isLoading: loadingLoc, refetch: refetchLoc, isRefetching: isRefetchingLoc } = useQuery({
+    const { data: locationData, isLoading: loadingLoc, error: errorLoc, refetch: refetchLoc, isRefetching: isRefetchingLoc } = useQuery({
         queryKey: ['location', id],
         queryFn: async () => {
+            console.log("DEBUG: Starting location fetch for ID:", id);
             const { data, error } = await supabase.from('restaurant_locations').select('*').eq('id', id).single();
-            if (error) throw error;
+            if (error) {
+                console.error("DEBUG: location fetch error:", error);
+                throw error;
+            }
+            console.log("DEBUG: Location fetched successfully:", data?.location_name);
             return data;
         }
     });
 
     const restaurantId = locationData?.restaurant_id;
 
-    const { data: restaurant, isLoading: loadingRest, refetch: refetchRest, isRefetching: isRefetchingRest } = useQuery({
+    const { data: restaurant, isLoading: loadingRest, error: errorRest, refetch: refetchRest, isRefetching: isRefetchingRest } = useQuery({
         queryKey: ['restaurant', restaurantId],
         queryFn: async () => {
+            console.log("DEBUG: Starting restaurant fetch for ID:", restaurantId);
             const { data, error } = await supabase.from('restaurants').select('*').eq('id', restaurantId).single();
-            if (error) throw error;
+            if (error) {
+                console.error("DEBUG: restaurant fetch error:", error);
+                throw error;
+            }
+            console.log("DEBUG: Restaurant fetched successfully:", data?.name);
             return data;
         },
         enabled: !!restaurantId
     });
 
-    const { data: menu, isLoading: loadingMenu, refetch: refetchMenu, isRefetching: isRefetchingMenu } = useQuery({
+    const { data: menu, isLoading: loadingMenu, error: errorMenu, refetch: refetchMenu, isRefetching: isRefetchingMenu } = useQuery({
         queryKey: ['menu', restaurantId, id],
         queryFn: async () => {
+            console.log("DEBUG: Starting menu fetch for restaurant:", restaurantId, "at location:", id);
             // Get all items
             const { data: items, error: mError } = await supabase
                 .from('menu_items')
@@ -54,7 +65,10 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                 .eq('restaurant_id', restaurantId)
                 .eq('is_available', true)
                 .order('category');
-            if (mError) throw mError;
+            if (mError) {
+                console.error("DEBUG: menu_items fetch error:", mError);
+                throw mError;
+            }
 
             // Get location-specific availability
             const { data: availability, error: aError } = await supabase
@@ -62,13 +76,19 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                 .select('menu_item_id, is_available')
                 .eq('location_id', id);
             
-            if (aError) throw aError;
+            if (aError) {
+                console.error("DEBUG: location_menu_items fetch error:", aError);
+                throw aError;
+            }
 
+            console.log("DEBUG: Menu and availability fetched. Processing items...");
             // Filter out items that are explicitly set to unavailable for this location
-            return items.filter(item => {
-                const setting = availability?.find(a => a.menu_item_id === item.id);
+            const result = (items || []).filter((item: any) => {
+                const setting = availability?.find((a: any) => a.menu_item_id === item.id);
                 return setting ? setting.is_available : true;
             });
+            console.log("DEBUG: Final menu items count:", result.length);
+            return result;
         },
         enabled: !!restaurantId
     });
@@ -110,9 +130,37 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
         ]);
     };
 
-    if (loadingRest || loadingMenu || loadingLoc) return (
+    // More robust loading check: wait for location first, then for restaurant/menu if ID exists
+    const actuallyLoading = loadingLoc || (!!restaurantId && (loadingRest || loadingMenu));
+    const anyError = errorLoc || errorRest || errorMenu;
+
+    if (actuallyLoading && !anyError) return (
         <View style={[styles.center, { backgroundColor: theme.background }]}>
             <ActivityIndicator color={theme.accent} size="large" />
+            <Text style={{ color: theme.textMuted, marginTop: 12 }}>
+                {loadingLoc ? "Searching for location..." : loadingRest ? "Getting restaurant info..." : "Preparing menu..."}
+            </Text>
+        </View>
+    );
+
+    // Final check for data existence or errors
+    if (anyError || !locationData || (!!restaurantId && !restaurant)) return (
+        <View style={[styles.center, { backgroundColor: theme.background }]}>
+            <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>Oops! Something went wrong.</Text>
+            <Text style={{ color: theme.textMuted, marginTop: 8, textAlign: 'center', paddingHorizontal: 40 }}>
+                {anyError ? (anyError as any).message : "Restaurant information not found."}
+            </Text>
+            {anyError && (
+                <Text style={{ color: theme.accent, marginTop: 12, fontSize: 12, opacity: 0.7 }}>
+                    Code: {(anyError as any).code || 'Unknown'}
+                </Text>
+            )}
+            <TouchableOpacity 
+                style={[styles.addButton, { position: 'static', marginTop: 30, paddingHorizontal: 30, height: 44, width: 'auto' }]} 
+                onPress={() => navigation.goBack()}
+            >
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Go Back</Text>
+            </TouchableOpacity>
         </View>
     );
 
@@ -133,7 +181,7 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                 {/* Hero Image */}
                 <View style={styles.imageContainer}>
                     <Image
-                        source={restaurant.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
+                        source={restaurant?.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                         style={styles.heroImage}
                         contentFit="cover"
                     />
@@ -149,8 +197,8 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
 
                 {/* Info */}
                 <View style={styles.infoSection}>
-                    <Text style={[styles.name, { color: theme.text }]}>{restaurant.name}</Text>
-                    <Text style={[styles.description, { color: theme.textMuted }]}>{restaurant.description}</Text>
+                    <Text style={[styles.name, { color: theme.text }]}>{locationData?.location_name || restaurant?.name || 'Restaurant'}</Text>
+                    <Text style={[styles.description, { color: theme.textMuted }]}>{restaurant?.description}</Text>
 
                     {locationData && (
                         <View style={{ marginTop: 12, padding: 12, backgroundColor: theme.surface, borderRadius: 12, gap: 4 }}>
@@ -158,7 +206,16 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                                 <MapPin size={14} color={theme.accent} />
                                 <Text style={{ color: theme.text, fontSize: 13, fontWeight: 'bold' }}>{locationData.location_name}</Text>
                             </View>
-                            <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 20 }}>{locationData.physical_address || `${locationData.suburb}, ${locationData.city}`}</Text>
+                            <Text style={{ color: theme.textMuted, fontSize: 12, marginLeft: 20 }}>{locationData.physical_address || locationData.suburb}</Text>
+                            {(locationData.opening_time || locationData.closing_time) && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 20, marginTop: 4 }}>
+                                    <Clock size={12} color={theme.textMuted} />
+                                    <Text style={{ color: theme.textMuted, fontSize: 11 }}>
+                                        {locationData.opening_time?.slice(0, 5)} - {locationData.closing_time?.slice(0, 5)}
+                                        {locationData.days_open && ` (${locationData.days_open.join(', ')})`}
+                                    </Text>
+                                </View>
+                            )}
                             {(locationData.phone || locationData.email) && (
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4, marginLeft: 20 }}>
                                     {locationData.phone && <Text style={{ color: theme.accent, fontSize: 12 }}>📞 {locationData.phone}</Text>}

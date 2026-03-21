@@ -4,6 +4,13 @@ interface MapPickerProps {
     lat: number;
     lng: number;
     onChange: (lat: number, lng: number) => void;
+    onPlaceSelected?: (details: {
+        physical_address: string;
+        city: string;
+        suburb: string;
+        lat: number;
+        lng: number;
+    }) => void;
 }
 
 declare global {
@@ -131,6 +138,59 @@ export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange }) => {
 
         markerRef.current = marker;
 
+        // --- Search Integration ---
+        const input = document.getElementById('pac-input') as HTMLInputElement;
+        if (input && window.google.maps.places) {
+            const autocomplete = new window.google.maps.places.Autocomplete(input, {
+                fields: ["address_components", "geometry", "name", "formatted_address"],
+                origin: map.getCenter(),
+                strictBounds: false,
+            });
+
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                if (!place.geometry || !place.geometry.location) {
+                    return;
+                }
+
+                const newLat = place.geometry.location.lat();
+                const newLng = place.geometry.location.lng();
+                const newPos = { lat: newLat, lng: newLng };
+
+                map.setCenter(newPos);
+                map.setZoom(17);
+                marker.setPosition(newPos);
+                onChange(newLat, newLng);
+
+                if (onPlaceSelected) {
+                    // Extract address components
+                    let city = '';
+                    let suburb = '';
+                    let address = place.formatted_address || '';
+
+                    place.address_components?.forEach((c: any) => {
+                        // City Fallbacks
+                        if (c.types.includes('locality')) city = c.long_name;
+                        else if (!city && c.types.includes('administrative_area_level_2')) city = c.long_name;
+                        else if (!city && c.types.includes('administrative_area_level_1')) city = c.long_name;
+
+                        // Suburb Fallbacks
+                        if (c.types.includes('sublocality_level_1')) suburb = c.long_name;
+                        else if (!suburb && c.types.includes('neighborhood')) suburb = c.long_name;
+                        else if (!suburb && c.types.includes('sublocality')) suburb = c.long_name;
+                    });
+
+                    onPlaceSelected({
+                        physical_address: address,
+                        city: city || 'Harare',
+                        suburb: suburb || '',
+                        lat: newLat,
+                        lng: newLng
+                    });
+                }
+            });
+        }
+
         // Click to move marker
         map.addListener('click', (e: any) => {
             const newPos = e.latLng;
@@ -156,10 +216,20 @@ export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange }) => {
     }, [lat, lng]);
 
     return (
-        <div 
-            ref={mapRef} 
-            className="w-full h-80 rounded-2xl border border-white/10 shadow-inner mt-4 overflow-hidden"
-            style={{ minHeight: '320px' }}
-        />
+        <div className="space-y-4">
+            <div className="relative">
+                <input
+                    id="pac-input"
+                    type="text"
+                    placeholder="Search for a location..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors shadow-inner"
+                />
+            </div>
+            <div 
+                ref={mapRef} 
+                className="w-full h-80 rounded-2xl border border-white/10 shadow-inner overflow-hidden"
+                style={{ minHeight: '320px' }}
+            />
+        </div>
     );
 };

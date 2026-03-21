@@ -307,7 +307,7 @@ export const CustomerHome = ({ navigation }: any) => {
                             />
                             <View style={styles.restaurantDetails}>
                                 <View style={styles.row}>
-                                    <Text style={[styles.restaurantName, { color: theme.text }]}>{item.name}</Text>
+                                    <Text style={[styles.restaurantName, { color: theme.text }]}>{item.location_name || item.name}</Text>
                                     <Text style={[styles.rating, { color: theme.text }]}>⭐ {item.rating_avg != null ? Number(item.rating_avg).toFixed(1) : 'New'}</Text>
                                 </View>
                                 <Text style={[styles.categories, { color: theme.textMuted }]}>{item.categories ? item.categories.join(' • ') : 'Food & Drink'}</Text>

@@ -62,6 +62,11 @@ export const RestaurantSettings = () => {
     const [activeTab, setActiveTab] = useState<'store' | 'payouts' | 'locations'>('store');
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedLocationForEdit, setSelectedLocationForEdit] = useState<any>(null);
+    const [locationDetails, setLocationDetails] = useState({
+        city: '',
+        suburb: '',
+        physical_address: ''
+    });
 
     const { data: restaurant, isLoading } = useQuery({
         queryKey: ['restaurant-settings', paramId || profile?.id],
@@ -159,7 +164,11 @@ export const RestaurantSettings = () => {
     });
 
     const upsertLocation = useMutation({
-        mutationFn: (data: any) => restaurantService.upsertLocation({ ...data, restaurant_id: restaurant.id }),
+        mutationFn: (data: any) => restaurantService.upsertLocation({ 
+            ...data, 
+            ...locationDetails,
+            restaurant_id: restaurant.id 
+        }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['restaurant-locations'] });
             setIsLocationModalOpen(false);
@@ -481,6 +490,7 @@ export const RestaurantSettings = () => {
                                     type="button"
                                     onClick={() => {
                                         setSelectedLocationForEdit(null);
+                                        setLocationDetails({ city: '', suburb: '', physical_address: '' });
                                         setIsLocationModalOpen(true);
                                     }}
                                     className="btn-primary flex items-center gap-2 px-4 py-2 text-sm"
@@ -498,7 +508,9 @@ export const RestaurantSettings = () => {
                                             </div>
                                             <div>
                                                 <h4 className="font-bold text-lg">{loc.location_name}</h4>
-                                                <p className="text-sm text-muted">{loc.physical_address || loc.suburb}, {loc.city}</p>
+                                                <p className="text-sm text-muted">
+                                                    {[loc.suburb, loc.city].filter(Boolean).join(', ') || loc.physical_address || 'No location details'}
+                                                </p>
                                                 {loc.phone && <p className="text-xs text-accent/80 mt-1 flex items-center gap-1"><Store size={10} /> {loc.phone}</p>}
                                             </div>
                                         </div>
@@ -507,6 +519,11 @@ export const RestaurantSettings = () => {
                                                 type="button"
                                                 onClick={() => {
                                                     setSelectedLocationForEdit(loc);
+                                                    setLocationDetails({
+                                                        city: loc.city || '',
+                                                        suburb: loc.suburb || '',
+                                                        physical_address: loc.physical_address || ''
+                                                    });
                                                     setIsLocationModalOpen(true);
                                                 }}
                                                 className="p-2 hover:bg-white/5 rounded-lg text-muted hover:text-white transition-colors"
@@ -588,9 +605,12 @@ export const RestaurantSettings = () => {
                                         e.preventDefault();
                                         const formData = new FormData(e.currentTarget);
                                         const data = Object.fromEntries(formData.entries());
+                                        const days = formData.getAll('days_open');
+                                        
                                         upsertLocation.mutate({
                                             ...selectedLocationForEdit,
                                             ...data,
+                                            days_open: days,
                                             lat: parseFloat(data.lat as string),
                                             lng: parseFloat(data.lng as string),
                                             is_open: true
@@ -603,12 +623,33 @@ export const RestaurantSettings = () => {
                                         <InputField label="Contact Phone" name="phone" defaultValue={selectedLocationForEdit?.phone || ''} placeholder="+263..." />
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-white/5">
-                                        <InputField label="City" name="city" required defaultValue={selectedLocationForEdit?.city || 'Harare'} />
-                                        <InputField label="Suburb" name="suburb" required defaultValue={selectedLocationForEdit?.suburb || ''} />
-                                    </div>
+                                    <div className="space-y-6 pt-4 border-t border-white/5">
+                                        <h4 className="text-sm font-bold flex items-center gap-2"><Clock size={16} className="text-accent" /> Operating Hours</h4>
+                                        <div className="space-y-4">
+                                            <label className="text-xs font-bold text-muted uppercase tracking-widest">Days Open</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                                                    <label key={day} className="flex-1 min-w-[3rem] text-center">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            name="days_open" 
+                                                            value={day} 
+                                                            defaultChecked={selectedLocationForEdit?.days_open?.includes(day) || !selectedLocationForEdit} 
+                                                            className="peer hidden" 
+                                                        />
+                                                        <div className="py-2 text-xs font-bold rounded-lg bg-white/5 border border-white/10 peer-checked:bg-accent/20 peer-checked:text-accent peer-checked:border-accent/50 cursor-pointer transition-all">
+                                                            {day}
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
 
-                                    <InputField label="Physical Address" name="physical_address" defaultValue={selectedLocationForEdit?.physical_address || ''} placeholder="Shop 4, Avondale Shopping Centre" />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <InputField label="Opening Time" name="opening_time" type="time" defaultValue={selectedLocationForEdit?.opening_time || '08:00'} />
+                                            <InputField label="Closing Time" name="closing_time" type="time" defaultValue={selectedLocationForEdit?.closing_time || '20:00'} />
+                                        </div>
+                                    </div>
 
                                     <div className="space-y-4 pt-4 border-t border-white/5">
                                         <label className="text-xs font-bold uppercase tracking-widest text-[#A3A3A3] ml-1">GPS Location *</label>
@@ -626,6 +667,17 @@ export const RestaurantSettings = () => {
                                                     const lngInput = document.getElementsByName('lng')[0] as HTMLInputElement;
                                                     if (latInput) latInput.value = lat.toString();
                                                     if (lngInput) lngInput.value = lng.toString();
+                                                }}
+                                                onPlaceSelected={(details) => {
+                                                    setLocationDetails({
+                                                        city: details.city,
+                                                        suburb: details.suburb,
+                                                        physical_address: details.physical_address
+                                                    });
+                                                    const latInput = document.getElementsByName('lat')[0] as HTMLInputElement;
+                                                    const lngInput = document.getElementsByName('lng')[0] as HTMLInputElement;
+                                                    if (latInput) latInput.value = details.lat.toString();
+                                                    if (lngInput) lngInput.value = details.lng.toString();
                                                 }}
                                             />
                                         </div>
