@@ -31,8 +31,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchGoogleRestaurants(nextPageToken = null) {
-    let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=restaurants+in+Harare+Zimbabwe&key=${GOOGLE_MAPS_API_KEY}`;
+async function fetchGoogleRestaurants(query, nextPageToken = null) {
+    let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}`;
     if (nextPageToken) {
         url += `&pagetoken=${nextPageToken}`;
     }
@@ -131,34 +131,55 @@ async function run() {
     let pagesFetched = 0;
     const MAX_PAGES = 3; // roughly 60 restaurants
     
-    do {
-        console.log(`\nFetching Page ${pagesFetched + 1}...`);
-        const result = await fetchGoogleRestaurants(pageToken);
-        
-        if (result.status !== 'OK' && result.status !== 'ZERO_RESULTS') {
-            console.error('Google API Error:', result.status, result.error_message);
-            break;
-        }
-        
-        const places = result.results || [];
-        console.log(`Found ${places.length} places on this page.`);
-        
-        for (const place of places) {
-            await insertRestaurant(place);
-            totalInserted++;
-        }
-        
-        pageToken = result.next_page_token;
-        pagesFetched++;
-        
-        if (pageToken && pagesFetched < MAX_PAGES) {
-            console.log('Waiting 2 seconds for next_page_token to become valid...');
-            await sleep(2000); // Google requires a delay before using next_page_token
-        } else {
-            pageToken = null; // stop loop
-        }
-        
-    } while (pageToken && pagesFetched < MAX_PAGES);
+    const queries = [
+        "fast food in Harare",
+        "Chicken Inn in Harare",
+        "Chicken Slice in Harare",
+        "KFC in Harare",
+        "Pizza Inn in Harare",
+        "Nandos in Harare",
+        "Mambos Chicken in Harare",
+        "Steers in Harare",
+        "cafes in Harare",
+        "takeaway in Harare",
+        "restaurants in Avondale Harare",
+        "restaurants in Borrowdale Harare"
+    ];
+
+    for (const query of queries) {
+        console.log(`\n\n=== Executing Query: "${query}" ===`);
+        pageToken = null;
+        pagesFetched = 0;
+
+        do {
+            console.log(`Fetching Page ${pagesFetched + 1} for ${query}...`);
+            const result = await fetchGoogleRestaurants(query, pageToken);
+            
+            if (result.status !== 'OK' && result.status !== 'ZERO_RESULTS') {
+                console.error('Google API Error:', result.status, result.error_message);
+                break;
+            }
+            
+            const places = result.results || [];
+            console.log(`Found ${places.length} places on this page.`);
+            
+            for (const place of places) {
+                await insertRestaurant(place);
+                totalInserted++;
+            }
+            
+            pageToken = result.next_page_token;
+            pagesFetched++;
+            
+            if (pageToken && pagesFetched < MAX_PAGES) {
+                console.log('Waiting 2 seconds for next_page_token to become valid...');
+                await sleep(2000); // Google requires a delay before using next_page_token
+            } else {
+                pageToken = null; // stop loop
+            }
+            
+        } while (pageToken && pagesFetched < MAX_PAGES);
+    }
 
     console.log(`\n--- Seeding Complete! Processed ${totalInserted} attempting inserts. ---`);
     process.exit(0);

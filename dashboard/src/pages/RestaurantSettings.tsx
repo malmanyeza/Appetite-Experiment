@@ -20,7 +20,10 @@ import {
     Lock,
     UserPlus,
     Phone,
-    X
+    X,
+    UploadCloud,
+    Wand2,
+    ImageIcon
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { clsx, type ClassValue } from 'clsx';
@@ -59,7 +62,7 @@ export const RestaurantSettings = () => {
     const totalSteps = isAdminRoute ? 6 : 5;
 
     // ─── EXISTING RESTAURANT: TABBED EDIT VIEW ────────────────────────
-    const [activeTab, setActiveTab] = useState<'store' | 'payouts' | 'locations'>('store');
+    const [activeTab, setActiveTab] = useState<'store' | 'payouts' | 'locations' | 'menu-scanner'>('store');
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedLocationForEdit, setSelectedLocationForEdit] = useState<any>(null);
     const [locationDetails, setLocationDetails] = useState({
@@ -301,6 +304,60 @@ export const RestaurantSettings = () => {
         }
     };
 
+    const [isScanning, setIsScanning] = useState(false);
+    const [scannedItems, setScannedItems] = useState<any[]>([]);
+
+    const handleMenuUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsScanning(true);
+        try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64Data = reader.result as string;
+                
+                const { data, error } = await supabase.functions.invoke('scan-menu-ai', {
+                    body: { imageBase64: base64Data, mimeType: file.type }
+                });
+
+                if (error) throw new Error(error.message || 'Failed to scan menu. Make sure the Edge Function is deployed.');
+                if (data?.error) throw new Error(data.error);
+
+                setScannedItems(data.items || []);
+                setIsScanning(false);
+            };
+            reader.readAsDataURL(file);
+        } catch (error: any) {
+            alert('AI Scan Failed: ' + error.message);
+            setIsScanning(false);
+        }
+    };
+
+    const handleSaveScannedMenu = async () => {
+        setIsSaving(true);
+        try {
+            for (const item of scannedItems) {
+                await restaurantService.addMenuItem({
+                    restaurant_id: restaurant.id,
+                    name: item.name,
+                    description: item.description || '',
+                    price: parseFloat(item.price) || 0,
+                    category: item.category || 'Specials',
+                    add_ons: item.add_ons || [],
+                    is_available: true
+                });
+            }
+            alert(`Successfully saved ${scannedItems.length} items to your menu!`);
+            setScannedItems([]);
+            queryClient.invalidateQueries({ queryKey: ['restaurant-menu'] }); 
+        } catch (error: any) {
+             alert('Failed to save items: ' + error.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // ─── EXISTING RESTAURANT: TABBED EDIT VIEW ────────────────────────
 
     if (!isNew) {
@@ -340,6 +397,13 @@ export const RestaurantSettings = () => {
                         className={cn("pb-4 text-sm font-bold border-b-2 transition-all", activeTab === 'payouts' ? "border-accent text-accent" : "border-transparent text-muted hover:text-white")}
                     >
                         Payouts Info
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('menu-scanner')}
+                        className={cn("pb-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2", activeTab === 'menu-scanner' ? "border-purple-400 text-purple-400" : "border-transparent text-muted hover:text-white")}
+                    >
+                        <Wand2 size={16} /> AI Scanner
                     </button>
                 </div>
 
@@ -576,6 +640,79 @@ export const RestaurantSettings = () => {
                                     <InputField label="Account / Phone Number" name="payout_number" required defaultValue={restaurant?.payout_number} />
                                     <InputField label="Account Name" name="payout_name" required defaultValue={restaurant?.payout_name} />
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'menu-scanner' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+                            <div className="glass p-8 space-y-6">
+                                <div>
+                                    <h3 className="text-xl font-bold flex items-center gap-2 text-purple-400"><Wand2 size={20} /> AI Menu Scanner</h3>
+                                    <p className="text-sm text-muted mt-1">Upload a photo of your physical menu, and our AI will instantly extract all items, prices, and toppings into your database.</p>
+                                </div>
+                                
+                                {!scannedItems.length ? (
+                                    <div className="mt-6 border-2 border-dashed border-white/20 rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-white/5 hover:bg-white/10 transition-colors relative cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            onChange={handleMenuUpload} 
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 m-0 z-10"
+                                            disabled={isScanning}
+                                        />
+                                        {isScanning ? (
+                                            <div className="space-y-4 flex flex-col items-center">
+                                                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin pointer-events-none" />
+                                                <p className="font-bold text-white pointer-events-none">AI is reading your menu...</p>
+                                                <p className="text-xs text-muted pointer-events-none">This usually takes about 5-10 seconds.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="pointer-events-none flex flex-col items-center">
+                                                <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mb-4 text-purple-400">
+                                                    <UploadCloud size={32} />
+                                                </div>
+                                                <h4 className="font-bold text-white mb-2">Click to Upload Menu Photo</h4>
+                                                <p className="text-sm text-muted max-w-xs">Supports JPG, PNG formats. Make sure the text is clearly readable.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="flex justify-between items-center bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl">
+                                            <p className="text-purple-300 font-medium">✨ AI successfully extracted {scannedItems.length} items from your menu!</p>
+                                            <div className="flex gap-4">
+                                                <button type="button" onClick={() => setScannedItems([])} className="text-sm text-muted hover:text-white px-4 py-2">Discard</button>
+                                                <button type="button" onClick={handleSaveScannedMenu} disabled={isSaving} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2">
+                                                    <Save size={16} /> {isSaving ? 'Saving...' : 'Save All to Menu'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {scannedItems.map((item, idx) => (
+                                                <div key={idx} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-bold text-lg text-white">{item.name}</h4>
+                                                        <span className="font-bold text-accent">${parseFloat(item.price).toFixed(2)}</span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-purple-400 uppercase tracking-widest">{item.category}</p>
+                                                    {item.description && <p className="text-sm text-muted">{item.description}</p>}
+                                                    {item.add_ons && item.add_ons.length > 0 && (
+                                                        <div className="mt-2 pt-2 border-t border-white/10">
+                                                            <p className="text-xs text-muted font-bold mb-1">ADD-ONS:</p>
+                                                            {item.add_ons.map((addon: any, i: number) => (
+                                                                <div key={i} className="flex justify-between text-xs">
+                                                                    <span className="text-muted">{addon.name}</span>
+                                                                    <span className="text-white">+${parseFloat(addon.price).toFixed(2)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
