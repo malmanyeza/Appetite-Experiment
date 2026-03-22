@@ -13,10 +13,10 @@ serve(async (req) => {
     }
 
     try {
-        const { imageBase64, mimeType } = await req.json();
+        const { imageBase64, mimeType, url } = await req.json();
 
-        if (!imageBase64) {
-            return new Response(JSON.stringify({ error: 'Missing image Base64 data' }), {
+        if (!imageBase64 && !url) {
+            return new Response(JSON.stringify({ error: 'Missing either image Base64 data or a website URL' }), {
                 status: 400,
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -31,7 +31,7 @@ serve(async (req) => {
         }
 
         // Strict prompt to ensure raw JSON mapping directly to our database fields
-        const prompt = `You are an expert AI data parser for a food delivery platform. Extract every distinct food item and price from the attached menu image. 
+        const prompt = `You are an expert AI data parser for a food delivery platform. Extract every distinct food item and price from the provided menu data (which may be an image or raw website HTML text). 
 Return your response EXCLUSIVELY as a raw, valid JSON array of objects. Do NOT include any markdown code block formatting (like \`\`\`json). Just the raw array.
 
 Each object MUST have the exact following structure:
@@ -50,19 +50,33 @@ Each object MUST have the exact following structure:
 - Ensure all prices are converted to floats. 
 - Capture any optional add-ons or toppings available for an item into the "add_ons" array. If none, leave the array empty.`;
 
-        // Prepare the HTTP payload for Gemini 1.5 Flash Vision REST API
+        // Prepare the HTTP payload for Gemini 1.5 Flash
+        let parts: any[] = [{ text: prompt }];
+
+        if (url) {
+            console.log(`Fetching HTML from: ${url}`);
+            try {
+                const websiteRes = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const htmlText = await websiteRes.text();
+                // We truncate extremely massive HTML just to stay safely within token limits, though Flash's window is huge
+                parts.push({ text: "\n\n--- WEBSITE CONTENT ---\n\n" + htmlText.substring(0, 500000) });
+            } catch (err: any) {
+                return new Response(JSON.stringify({ error: 'Failed to fetch the provided website URL: ' + err.message }), {
+                    status: 400,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+            }
+        } else if (imageBase64) {
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: imageBase64.replace(/^data:image\/[a-z]+;base64,/, '')
+                }
+            });
+        }
+
         const requestBody = {
-            contents: [{
-                parts: [
-                    { text: prompt },
-                    {
-                        inlineData: {
-                            mimeType: mimeType || 'image/jpeg',
-                            data: imageBase64.replace(/^data:image\/[a-z]+;base64,/, '')
-                        }
-                    }
-                ]
-            }],
+            contents: [{ parts }],
             generationConfig: {
                 temperature: 0.1, // extremely low temperature for deterministic parsing
                 topP: 0.8,

@@ -61,6 +61,7 @@ export const RestaurantSettings = () => {
     // AI Scanner state
     const [isScanning, setIsScanning] = useState(false);
     const [scannedItems, setScannedItems] = useState<any[]>([]);
+    const [menuUrl, setMenuUrl] = useState('');
 
     // Total steps: 6 for admin (includes credentials step), 5 for restaurant self-edit
     const totalSteps = isAdminRoute ? 6 : 5;
@@ -331,6 +332,24 @@ export const RestaurantSettings = () => {
             reader.readAsDataURL(file);
         } catch (error: any) {
             alert('AI Scan Failed: ' + error.message);
+            setIsScanning(false);
+        }
+    };
+
+    const handleUrlScan = async () => {
+        if (!menuUrl) return;
+        setIsScanning(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('scan-menu-ai', {
+                body: { url: menuUrl }
+            });
+            if (error) throw new Error(error.message || 'Failed to scan website. Make sure Edge Function is deployed.');
+            if (data?.error) throw new Error(data.error);
+
+            setScannedItems(data.items || []);
+            setIsScanning(false);
+        } catch (error: any) {
+            alert('AI Website Scan Failed: ' + error.message);
             setIsScanning(false);
         }
     };
@@ -654,30 +673,59 @@ export const RestaurantSettings = () => {
                                 </div>
                                 
                                 {!scannedItems.length ? (
-                                    <div className="mt-6 border-2 border-dashed border-white/20 rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-white/5 hover:bg-white/10 transition-colors relative cursor-pointer">
-                                        <input 
-                                            type="file" 
-                                            accept="image/*" 
-                                            onChange={handleMenuUpload} 
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 m-0 z-10"
-                                            disabled={isScanning}
-                                        />
-                                        {isScanning ? (
-                                            <div className="space-y-4 flex flex-col items-center">
-                                                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin pointer-events-none" />
-                                                <p className="font-bold text-white pointer-events-none">AI is reading your menu...</p>
-                                                <p className="text-xs text-muted pointer-events-none">This usually takes about 5-10 seconds.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="pointer-events-none flex flex-col items-center">
-                                                <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mb-4 text-purple-400">
-                                                    <UploadCloud size={32} />
+                                    <>
+                                        <div className="mt-6 border-2 border-dashed border-white/20 rounded-2xl p-12 flex flex-col items-center justify-center text-center bg-white/5 hover:bg-white/10 transition-colors relative cursor-pointer">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                onChange={handleMenuUpload} 
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 m-0 z-10"
+                                                disabled={isScanning}
+                                            />
+                                            {isScanning ? (
+                                                <div className="space-y-4 flex flex-col items-center">
+                                                    <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin pointer-events-none" />
+                                                    <p className="font-bold text-white pointer-events-none">AI is reading your menu...</p>
+                                                    <p className="text-xs text-muted pointer-events-none">This usually takes about 5-10 seconds.</p>
                                                 </div>
-                                                <h4 className="font-bold text-white mb-2">Click to Upload Menu Photo</h4>
-                                                <p className="text-sm text-muted max-w-xs">Supports JPG, PNG formats. Make sure the text is clearly readable.</p>
+                                            ) : (
+                                                <div className="pointer-events-none flex flex-col items-center">
+                                                    <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mb-4 text-purple-400">
+                                                        <UploadCloud size={32} />
+                                                    </div>
+                                                    <h4 className="font-bold text-white mb-2">Click to Upload Menu Photo</h4>
+                                                    <p className="text-sm text-muted max-w-xs">Supports JPG, PNG formats. Make sure the text is clearly readable.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-6 flex items-center gap-4 w-full">
+                                            <div className="h-[1px] flex-1 bg-white/10" />
+                                            <span className="text-xs font-bold text-muted uppercase tracking-widest">OR</span>
+                                            <div className="h-[1px] flex-1 bg-white/10" />
+                                        </div>
+                                        <div className="mt-6 space-y-3">
+                                            <p className="text-sm font-bold text-white pl-1">Extract directly from Website URL</p>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="url" 
+                                                    placeholder="https://restaurant.com/menu" 
+                                                    value={menuUrl}
+                                                    onChange={(e) => setMenuUrl(e.target.value)}
+                                                    className="input-field flex-1"
+                                                    disabled={isScanning}
+                                                />
+                                                <button 
+                                                    type="button"
+                                                    onClick={handleUrlScan} 
+                                                    disabled={!menuUrl || isScanning}
+                                                    className="btn-primary py-2 px-6"
+                                                >
+                                                    Scan Link
+                                                </button>
                                             </div>
-                                        )}
-                                    </div>
+                                            <p className="text-xs text-muted">The AI will safely open the website and extract all food items automatically.</p>
+                                        </div>
+                                    </>
                                 ) : (
                                     <div className="space-y-6">
                                         <div className="flex justify-between items-center bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl">
