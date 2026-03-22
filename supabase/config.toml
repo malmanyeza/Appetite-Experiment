@@ -25,3 +25,7 @@ entrypoint = "./functions/paynow_webhook/index.ts"
 [functions.check_payment_status]
 enabled = true
 verify_jwt = false
+
+[functions.scan-menu-ai]
+enabled = true
+verify_jwt = false

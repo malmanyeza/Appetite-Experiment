@@ -128,6 +128,7 @@ export const AdminMassMenuScanner = () => {
                         description: item.description || '',
                         price: parseFloat(item.price) || 0,
                         category: item.category || 'Specials',
+                        image_url: item.image_url || '',
                         add_ons: item.add_ons || [],
                         is_available: true
                     });
