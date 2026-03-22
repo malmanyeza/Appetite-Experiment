@@ -9,7 +9,8 @@ import {
     Star,
     MoreVertical,
     ExternalLink,
-    ShieldCheck
+    ShieldCheck,
+    Wand2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -32,13 +33,22 @@ export const AdminRestaurants = () => {
                     <h1 className="text-2xl font-bold">Restaurants</h1>
                     <p className="text-muted-foreground text-sm">Manage restaurant partners and onboarding</p>
                 </div>
-                <button
-                    onClick={() => navigate('/admin/restaurants/new/settings')}
-                    className="btn-primary flex items-center gap-2 px-6"
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Restaurant
-                </button>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/admin/mass-menu')}
+                        className="btn-primary bg-purple-600 hover:bg-purple-500 flex items-center gap-2 px-6 shadow-purple-500/20"
+                    >
+                        <Wand2 className="w-4 h-4" />
+                        Mass Deploy Menu
+                    </button>
+                    <button
+                        onClick={() => navigate('/admin/restaurants/new/settings')}
+                        className="btn-primary flex items-center gap-2 px-6"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add Restaurant
+                    </button>
+                </div>
             </div>
 
             <div className="bg-surface border border-white/5 rounded-2xl overflow-hidden">

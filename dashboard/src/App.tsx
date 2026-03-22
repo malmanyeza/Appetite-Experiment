@@ -16,6 +16,7 @@ import { AdminRestaurants } from './pages/AdminRestaurants';
 import { AdminDrivers } from './pages/AdminDrivers';
 import { AdminDispatch } from './pages/AdminDispatch';
 import { AdminConfig } from './pages/AdminConfig';
+import { AdminMassMenuScanner } from './pages/AdminMassMenuScanner';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
     const { user, currentRole, loading, initialized, refreshSession } = useAuthStore();
@@ -84,6 +85,7 @@ function App() {
                                     <Route index element={<Overview />} />
                                     <Route path="orders" element={<AdminOrders />} />
                                     <Route path="restaurants" element={<AdminRestaurants />} />
+                                    <Route path="mass-menu" element={<AdminMassMenuScanner />} />
                                     <Route path="restaurants/:id/menu" element={<RestaurantMenu />} />
                                     <Route path="restaurants/:id/settings" element={<RestaurantSettings />} />
                                     <Route path="drivers" element={<AdminDrivers />} />

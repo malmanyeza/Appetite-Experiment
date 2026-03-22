@@ -58,6 +58,10 @@ export const RestaurantSettings = () => {
     // New menu items state for onboarding
     const [onboardingMenu, setOnboardingMenu] = useState<any[]>([]);
 
+    // AI Scanner state
+    const [isScanning, setIsScanning] = useState(false);
+    const [scannedItems, setScannedItems] = useState<any[]>([]);
+
     // Total steps: 6 for admin (includes credentials step), 5 for restaurant self-edit
     const totalSteps = isAdminRoute ? 6 : 5;
 
@@ -303,9 +307,6 @@ export const RestaurantSettings = () => {
             updateRestaurant.mutate(submissionData);
         }
     };
-
-    const [isScanning, setIsScanning] = useState(false);
-    const [scannedItems, setScannedItems] = useState<any[]>([]);
 
     const handleMenuUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
