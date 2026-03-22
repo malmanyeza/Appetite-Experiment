@@ -164,6 +164,23 @@ export const restaurantService = {
             if (memberError) console.error('Failed to update membership:', memberError);
         }
 
+        // 3. Auto-create location if it does not exist (fixes bug where new restaurants do not appear in mobile app)
+        if (data.id) {
+            const { data: locs } = await supabase.from('restaurant_locations').select('id').eq('restaurant_id', data.id);
+            if (!locs || locs.length === 0) {
+                await supabase.from('restaurant_locations').insert({
+                    restaurant_id: data.id,
+                    location_name: 'Main Branch',
+                    city: restaurant.city || 'Unknown',
+                    suburb: restaurant.suburb || 'Unknown',
+                    lat: restaurant.lat || 0,
+                    lng: restaurant.lng || 0,
+                    is_open: restaurant.is_open ?? true,
+                    phone: restaurant.owner_phone || null
+                });
+            }
+        }
+
         return data;
     },
 
