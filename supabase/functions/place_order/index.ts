@@ -42,14 +42,16 @@ Deno.serve(async (req: Request) => {
         });
 
     const body = await req.json();
-    const { items, address, paymentMethod, restaurantId, locationId } = body;
+    const { items, address, paymentMethod, restaurantId, locationId, fulfillmentType = 'delivery' } = body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw new Error('Cart is empty or invalid.');
     }
     if (!restaurantId) throw new Error('Restaurant ID is required.');
     if (!locationId) throw new Error('Location ID is required.');
-    if (!address) throw new Error('Delivery address is required.');
+    if (fulfillmentType === 'delivery' && !address) {
+      throw new Error('Delivery address is required.');
+    }
 
     // Fetch master prices to prevent tampering
     const cleanId = (id: string) => id.length > 36 ? id.substring(0, 36) : id;
@@ -106,15 +108,18 @@ Deno.serve(async (req: Request) => {
         throw new Error('Restaurant location not found for distance calculation.');
     }
 
-    // Calculate Distance using native SQL function
-    const { data: distanceKm, error: distError } = await adminClient.rpc('get_distance_km', {
-        lat1: restaurant.lat,
-        lng1: restaurant.lng,
-        lat2: address.lat,
-        lng2: address.lng
-    });
-
-    if (distError) console.error('Distance calculation error:', distError);
+    // Calculate Distance using native SQL function (only if delivery)
+    let distanceKm = 0;
+    if (fulfillmentType === 'delivery') {
+      const { data: dist, error: distError } = await adminClient.rpc('get_distance_km', {
+          lat1: restaurant.lat,
+          lng1: restaurant.lng,
+          lat2: address.lat,
+          lng2: address.lng
+      });
+      if (distError) console.error('Distance calculation error:', distError);
+      distanceKm = Number(dist) || 0;
+    }
 
     // Apply exact same rounding logic as mobile client
     const distance = Math.round(Number(distanceKm) || 0);
@@ -126,7 +131,7 @@ Deno.serve(async (req: Request) => {
     const serviceFee = Number(config.service_fee || 0.5);
     
     // Formula: Base + (PerKm * Distance) + Surge
-    const deliveryFee = baseFee + (perKmFee * distance) + surge;
+    const deliveryFee = fulfillmentType === 'pickup' ? 0 : (baseFee + (perKmFee * distance) + surge);
     
     // 2. Driver Payout
     const driverBase = Number(config.driver_base || 1.2);
@@ -134,7 +139,7 @@ Deno.serve(async (req: Request) => {
     const driverBonus = Number(config.driver_bonus || 0);
     
     // Formula: DriverBase + (DriverPerKm * Distance) + Bonus
-    const driverEarnings = driverBase + (driverPerKm * distance) + driverBonus;
+    const driverEarnings = fulfillmentType === 'pickup' ? 0 : (driverBase + (driverPerKm * distance) + driverBonus);
     
     // 3. Totals & Margins
     // Total = Food + Delivery + Service
@@ -150,7 +155,14 @@ Deno.serve(async (req: Request) => {
         location_id: locationId,
         status: (paymentMethod === 'ecocash' || paymentMethod === 'card') ? 'pending' : 'confirmed',
         delivery_pin: deliveryPin,
-        delivery_address_snapshot: address,
+        fulfillment_type: fulfillmentType,
+        delivery_address_snapshot: fulfillmentType === 'pickup' ? {
+            label: 'Pickup',
+            lat: restaurant.lat,
+            lng: restaurant.lng,
+            suburb: 'PICKUP',
+            notes: 'Customer will collect from drive-thru'
+        } : address,
         pricing: {
             subtotal,
             delivery_fee: deliveryFee,

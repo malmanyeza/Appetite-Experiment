@@ -201,6 +201,12 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
                         {/* Dropdown menu */}
                         <div className="absolute top-full right-0 mt-2 w-48 py-2 bg-surface border border-white/5 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all shadow-xl">
+                            <button 
+                                onClick={() => window.location.href = '/'} 
+                                className="w-full text-left px-4 py-2 text-sm text-muted-foreground hover:bg-white/5 flex items-center gap-2 transition-colors border-b border-white/5"
+                            >
+                                <User size={16} /> Switch to Customer
+                            </button>
                             <button onClick={handleSignOut} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 flex items-center gap-2 transition-colors">
                                 <LogOut size={16} /> Logout
                             </button>

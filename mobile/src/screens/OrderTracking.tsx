@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
+import * as ExpoLocation from 'expo-location';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { ChevronLeft, MapPin, Package, Bike, CheckCircle2, Search, Navigation, Clock, LocateFixed, X, Phone } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Package, Bike, CheckCircle2, Search, Navigation, Clock, LocateFixed, X, Phone, Target } from 'lucide-react-native';
 import { useAuthStore } from '../store/authStore';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from '../components/Map';
 import { mapDarkStyle, mapLightStyle } from '../theme/MapStyle';
@@ -46,13 +47,26 @@ export const OrderTracking = ({ route, navigation }: any) => {
     
     // Live tracking states
     const [driverLocation, setDriverLocation] = React.useState<any>(null);
+    const [userLocation, setUserLocation] = React.useState<any>(null);
     const [isMapVisible, setIsMapVisible] = React.useState(false);
     const [routeCoords, setRouteCoords] = React.useState<any[]>([]);
     const [distance, setDistance] = React.useState<string>('');
     const [duration, setDuration] = React.useState<string>('');
     
+    // Scalability Optimization: refs to track last fetch to avoid excessive Google Maps API calls
+    const lastFetchRef = React.useRef<number>(0);
+    const lastPosRef = React.useRef<{lat: number, lng: number} | null>(null);
+
     const mapRef = React.useRef<MapView | null>(null);
     const slideAnim = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+
+    // In-App Calling States
+    const [isCallModalVisible, setIsCallModalVisible] = React.useState(false);
+    const [isInAppCalling, setIsInAppCalling] = React.useState(false);
+    const [isIncomingCall, setIsIncomingCall] = React.useState(false);
+    const [activeCallId, setActiveCallId] = React.useState<string | null>(null);
+    const [callStartedAt, setCallStartedAt] = React.useState<Date | null>(null);
+
     const { data: activeOrder, isLoading: isActiveLoading } = useQuery({
         queryKey: ['active-order', user?.id],
         queryFn: async () => {
@@ -81,7 +95,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
                 .from('orders')
                 .select(`
                     *,
-                    restaurants (name, suburb, city, landmark_notes),
+                    restaurants (name, suburb, city, landmark_notes, lat, lng),
                     profiles:driver_id (id, full_name, phone, lat, lng)
                 `)
                 .eq('id', resolvedOrderId)
@@ -176,47 +190,116 @@ export const OrderTracking = ({ route, navigation }: any) => {
     
 
 
-    // Live Route Calculation
+    // Track user location for pickup orders
     useEffect(() => {
-        if (!isMapVisible || !driverLocation || !order?.delivery_address_snapshot) return;
+        if (!isMapVisible) return;
+        let subscription: any;
+        (async () => {
+            const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return;
+            subscription = await ExpoLocation.watchPositionAsync(
+                { accuracy: ExpoLocation.Accuracy.Balanced, distanceInterval: 15 },
+                (loc) => setUserLocation(loc.coords)
+            );
+        })();
+        return () => subscription?.remove();
+    }, [isMapVisible]);
 
+    // Live Route Calculation - Delivery: driver->customer, Pickup: user->restaurant
+    useEffect(() => {
+        if (!isMapVisible) return;
+
+        const isPickup = order?.fulfillment_type === 'pickup' ||
+            String(order?.fulfillment_type || '').toLowerCase().trim() === 'pickup';
+
+        // Choose moving entity position
+        const movingLat = isPickup ? userLocation?.latitude : driverLocation?.latitude;
+        const movingLng = isPickup ? userLocation?.longitude : driverLocation?.longitude;
+
+        if (!movingLat || !movingLng) return;
+
+        // SCALABILITY CHECK: Only fetch if:
+        // 1. We haven't fetched in the last 60 seconds
+        // 2. OR the entity has moved more than 100 meters
+        const now = Date.now();
+        const timeDiff = now - lastFetchRef.current;
+        
+        let shouldFetch = false;
+        if (timeDiff > 60000) { // 60 seconds
+            shouldFetch = true;
+        } else if (lastPosRef.current) {
+            const R = 6371e3; // meters
+            const φ1 = lastPosRef.current.lat * Math.PI/180;
+            const φ2 = movingLat * Math.PI/180;
+            const Δφ = (movingLat-lastPosRef.current.lat) * Math.PI/180;
+            const Δλ = (movingLng-lastPosRef.current.lng) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distanceMoved = R * c;
+            
+            if (distanceMoved > 100) { // 100 meters
+                shouldFetch = true;
+            }
+        } else {
+            shouldFetch = true; // First time
+        }
+
+        if (!shouldFetch) return;
+
+        // Pickup: route from user location to restaurant
+        if (isPickup) {
+            const dest = order?.delivery_address_snapshot;
+            if (!userLocation || !dest?.lat) return;
+            const fetchPickupRoute = async () => {
+                try {
+                    lastFetchRef.current = Date.now();
+                    lastPosRef.current = { lat: movingLat, lng: movingLng };
+                    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${userLocation.latitude},${userLocation.longitude}&destination=${dest.lat},${dest.lng}&key=${GOOGLE_API_KEY}`;
+                    const resp = await fetch(url);
+                    const json = await resp.json();
+                    if (json.routes?.length > 0) {
+                        const route = json.routes[0];
+                        setRouteCoords(decodePolyline(route.overview_polyline.points));
+                        if (route.legs?.length > 0) {
+                            setDistance(route.legs[0].distance.text);
+                            setDuration(route.legs[0].duration.text);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[Tracking] Pickup route error:', err);
+                }
+            };
+            fetchPickupRoute();
+            return;
+        }
+
+        // Delivery: route from driver to customer
+        if (!driverLocation || !order?.delivery_address_snapshot) return;
         const fetchRoute = async () => {
             try {
+                lastFetchRef.current = Date.now();
+                lastPosRef.current = { lat: movingLat, lng: movingLng };
                 const dest = order.delivery_address_snapshot;
                 const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${driverLocation.latitude},${driverLocation.longitude}&destination=${dest.lat},${dest.lng}&key=${GOOGLE_API_KEY}`;
-                
-                console.log(`[Tracking] Fetching route: ${driverLocation.latitude},${driverLocation.longitude} -> ${dest.lat},${dest.lng}`);
-                
                 const resp = await fetch(url);
                 const json = await resp.json();
-                
-                if (json.status !== 'OK') {
-                    console.warn(`[Tracking] Directions API Status: ${json.status}`, json.error_message);
-                    return;
-                }
-
-                if (json.routes && json.routes.length > 0) {
+                if (json.status !== 'OK') return;
+                if (json.routes?.length > 0) {
                     const route = json.routes[0];
-                    const pts = decodePolyline(route.overview_polyline.points);
-                    setRouteCoords(pts);
-                    
-                    if (route.legs && route.legs.length > 0) {
-                        const leg = route.legs[0];
-                        setDistance(leg.distance.text);
-                        setDuration(leg.duration.text);
-                        console.log(`[Tracking] Route updated: ${leg.distance.text}, ${leg.duration.text}`);
+                    setRouteCoords(decodePolyline(route.overview_polyline.points));
+                    if (route.legs?.length > 0) {
+                        setDistance(route.legs[0].distance.text);
+                        setDuration(route.legs[0].duration.text);
                     }
-                } else {
-                    console.log("[Tracking] No routes found");
                 }
             } catch (err) {
-                console.error("[Tracking] Directions Fetch Fatal Error:", err);
+                console.error('[Tracking] Delivery route error:', err);
             }
         };
-
         fetchRoute();
-        // Recalculate if driver moves significantly (handled by driverLocation dependency)
-    }, [isMapVisible, driverLocation, order?.delivery_address_snapshot?.lat]);
+    }, [isMapVisible, driverLocation, userLocation?.latitude, userLocation?.longitude, order?.delivery_address_snapshot?.lat, order?.delivery_address_snapshot?.lng]);
 
     const toggleMap = (show: boolean) => {
         setIsMapVisible(show);
@@ -224,7 +307,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
             toValue: show ? 0 : Dimensions.get('window').height,
             useNativeDriver: true,
             tension: 50,
-            friction: 9
+            friction: 8
         }).start(() => {
             // After map slides in, try to fit coordinates
             if (show) {
@@ -233,17 +316,27 @@ export const OrderTracking = ({ route, navigation }: any) => {
         });
     };
 
+    const recenterMap = () => {
+        if (routeCoords.length > 0 && mapRef.current) {
+            mapRef.current.fitToCoordinates(routeCoords, {
+                edgePadding: { top: 80, right: 50, bottom: 180, left: 50 },
+                animated: true,
+            });
+        }
+    };
+
     const fitMarkers = () => {
         if (!mapRef.current) return;
         const coords = [];
-        if (order?.delivery_address_snapshot?.lat) {
-            coords.push({ 
-                latitude: order.delivery_address_snapshot.lat, 
-                longitude: order.delivery_address_snapshot.lng 
-            });
-        }
-        if (driverLocation?.latitude) {
-            coords.push(driverLocation);
+        const isPickup = order?.fulfillment_type === 'pickup' ||
+            String(order?.fulfillment_type || '').toLowerCase().trim() === 'pickup';
+
+        if (isPickup) {
+            if (userLocation?.latitude) coords.push({ latitude: userLocation.latitude, longitude: userLocation.longitude });
+            if (order?.restaurants?.lat) coords.push({ latitude: Number(order.restaurants.lat), longitude: Number(order.restaurants.lng) });
+        } else {
+            if (order?.delivery_address_snapshot?.lat) coords.push({ latitude: order.delivery_address_snapshot.lat, longitude: order.delivery_address_snapshot.lng });
+            if (driverLocation?.latitude) coords.push(driverLocation);
         }
         
         if (coords.length > 0) {
@@ -354,7 +447,12 @@ export const OrderTracking = ({ route, navigation }: any) => {
         </View>
     );
 
-    const statuses = [
+    const statuses = order?.fulfillment_type === 'pickup' ? [
+        { id: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
+        { id: 'preparing', label: 'Preparing', icon: Package },
+        { id: 'ready_for_pickup', label: 'Ready for Pickup', icon: MapPin },
+        { id: 'delivered', label: 'Collected', icon: CheckCircle2 },
+    ] : [
         { id: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
         { id: 'preparing', label: 'Preparing', icon: Package },
         { id: 'ready_for_pickup', label: 'Ready', icon: CheckCircle2 },
@@ -387,12 +485,13 @@ export const OrderTracking = ({ route, navigation }: any) => {
                         {displayStatus === 'confirmed' ? 'Restaurant is confirming your order' :
                             displayStatus === 'preparing' ? 'Your food is being prepared' :
                                 displayStatus === 'ready_for_pickup' ? (
+                                    order.fulfillment_type === 'pickup' ? 'Your order is ready for collection! Please head to the restaurant.' :
                                     order.status === 'picked_up' ? 'Biker has picked up your order and is preparing to head your way' :
                                     order.driver_id ? 'Driver has accepted and is heading to the restaurant' : 
                                     'Restaurant has finished preparing your food'
                                 ) :
                                     displayStatus === 'on_the_way' ? 'Biker is on the way to you!' :
-                                        'Order Delivered'}
+                                        order.fulfillment_type === 'pickup' ? 'Order Collected' : 'Order Delivered'}
                     </Text>
 
                     {order.status === 'on_the_way' && order.delivery_address_snapshot?.landmark_notes && (
@@ -402,7 +501,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
                     )}
 
                     <View style={styles.pinBox}>
-                        <Text style={{ color: theme.textMuted, fontSize: 12 }}>Delivery PIN</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 12 }}>{order.fulfillment_type === 'pickup' ? 'Collection PIN' : 'Delivery PIN'}</Text>
                         <Text style={[styles.pinCode, { color: theme.text }]}>{order.delivery_pin}</Text>
                     </View>
                 </View>
@@ -437,14 +536,20 @@ export const OrderTracking = ({ route, navigation }: any) => {
                                         {status.label}
                                     </Text>
                                     
-                                    {status.id === 'on_the_way' && currentIdx >= idx && (
+                                    {/* Show map/nav from first step onwards for pickups; show for 'on_the_way' for deliveries */}
+                                    {((order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup')
+                                        ? status.id === 'confirmed' && currentIdx >= idx
+                                        : status.id === 'on_the_way' && currentIdx >= idx
+                                    ) && (
                                         <View style={styles.timelineActions}>
                                             <TouchableOpacity 
                                                 style={[styles.liveMapBtn, { backgroundColor: `${theme.accent}15` }]}
                                                 onPress={() => toggleMap(true)}
                                             >
-                                                <LocateFixed size={14} color={theme.accent} />
-                                                <Text style={[styles.liveMapBtnText, { color: theme.accent }]}>Live Map</Text>
+                                                <Navigation size={14} color={theme.accent} />
+                                                <Text style={[styles.liveMapBtnText, { color: theme.accent }]}>
+                                                    {order.fulfillment_type === 'pickup' ? 'Restaurant Location' : 'Live Map'}
+                                                </Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -469,9 +574,11 @@ export const OrderTracking = ({ route, navigation }: any) => {
                         <X color={theme.text} size={24} />
                     </TouchableOpacity>
                     <View style={styles.mapHeadingContainer}>
-                        <Text style={[styles.mapTitle, { color: theme.text }]}>Live Tracking</Text>
+                        <Text style={[styles.mapTitle, { color: theme.text }]}>
+                            {order.fulfillment_type === 'pickup' ? 'Pickup Location' : 'Live Tracking'}
+                        </Text>
                         <Text style={[styles.mapSubtitle, { color: theme.textMuted }]}>
-                            Biker is on the way to you
+                            {order.fulfillment_type === 'pickup' ? 'Navigate to the restaurant' : 'Biker is on the way to you'}
                         </Text>
                     </View>
                 </View>
@@ -482,13 +589,14 @@ export const OrderTracking = ({ route, navigation }: any) => {
                     provider={PROVIDER_GOOGLE}
                     customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
                     initialRegion={{
-                        latitude: driverLocation?.latitude || order?.delivery_address_snapshot?.lat || -17.8248,
-                        longitude: driverLocation?.longitude || order?.delivery_address_snapshot?.lng || 31.0530,
+                        latitude: (order.fulfillment_type === 'pickup' ? (order.delivery_address_snapshot?.lat || order.restaurants?.lat) : (driverLocation?.latitude || order?.delivery_address_snapshot?.lat)) || -17.8248,
+                        longitude: (order.fulfillment_type === 'pickup' ? (order.delivery_address_snapshot?.lng || order.restaurants?.lng) : (driverLocation?.longitude || order?.delivery_address_snapshot?.lng)) || 31.0530,
                         latitudeDelta: 0.05,
                         longitudeDelta: 0.05
                     }}
                 >
-                    {order.delivery_address_snapshot?.lat && (
+                    {/* Delivery: show customer address marker */}
+                    {order.fulfillment_type === 'delivery' && order.delivery_address_snapshot?.lat && (
                         <Marker
                             coordinate={{
                                 latitude: Number(order.delivery_address_snapshot.lat),
@@ -499,7 +607,34 @@ export const OrderTracking = ({ route, navigation }: any) => {
                         />
                     )}
 
-                    {driverLocation?.latitude && (
+                    {/* Pickup: show restaurant destination marker */}
+                    {(order.isPickup || order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (order.delivery_address_snapshot?.lat || order.restaurants?.lat) && (
+                        <Marker
+                            coordinate={{
+                                latitude: Number(order.delivery_address_snapshot?.lat || order.restaurants?.lat),
+                                longitude: Number(order.delivery_address_snapshot?.lng || order.restaurants?.lng)
+                            }}
+                            title={order.restaurants?.name || 'Restaurant'}
+                        >
+                            <View style={[styles.driverMarker, { backgroundColor: theme.accent }]}>
+                                <MapPin color="#FFF" size={16} />
+                            </View>
+                        </Marker>
+                    )}
+
+                    {/* Pickup: show user's current location marker */}
+                    {(order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && userLocation?.latitude && (
+                        <Marker
+                            coordinate={{ latitude: userLocation.latitude, longitude: userLocation.longitude }}
+                            title="You"
+                        >
+                            <View style={[styles.driverMarker, { backgroundColor: '#3B82F6' }]}>
+                                <LocateFixed color="#FFF" size={16} />
+                            </View>
+                        </Marker>
+                    )}
+
+                    {order.fulfillment_type === 'delivery' && driverLocation?.latitude && (
                         <Marker
                             coordinate={{
                                 latitude: Number(driverLocation.latitude),
@@ -514,11 +649,11 @@ export const OrderTracking = ({ route, navigation }: any) => {
                             </View>
                         </Marker>
                     )}
-
+                    {/* Route Polyline */}
                     {routeCoords.length > 0 && (
                         <Polyline
                             coordinates={routeCoords}
-                            strokeWidth={6}
+                            strokeWidth={4}
                             strokeColor={theme.accent}
                             lineJoin="round"
                             lineCap="round"
@@ -526,7 +661,8 @@ export const OrderTracking = ({ route, navigation }: any) => {
                     )}
                 </MapView>
 
-                {/* Floating Metrics */}
+
+                {/* Floating Metrics + Navigate button for pickup */}
                 {(distance || duration) && (
                     <View style={[styles.floatingMetrics, { backgroundColor: theme.surface }]}>
                         <View style={styles.metricItem}>
@@ -538,6 +674,18 @@ export const OrderTracking = ({ route, navigation }: any) => {
                             <Clock size={18} color={theme.accent} />
                             <Text style={[styles.metricText, { color: theme.text }]}>{duration}</Text>
                         </View>
+                        {(order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (order.delivery_address_snapshot?.lat || order.restaurants?.lat) && (
+                            <>
+                                <View style={[styles.metricDivider, { backgroundColor: theme.border }]} />
+                                <TouchableOpacity
+                                    style={styles.metricItem}
+                                    onPress={recenterMap}
+                                >
+                                    <Target size={18} color={theme.accent} />
+                                    <Text style={[styles.metricText, { color: theme.accent }]}>Recenter</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 )}
             </Animated.View>
@@ -697,6 +845,22 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5
+    },
+    recenterBtn: {
+        position: 'absolute',
+        right: 20,
+        top: 140,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 5,
+        zIndex: 1002
     },
     floatingMetrics: {
         position: 'absolute',

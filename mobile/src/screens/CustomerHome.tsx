@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -26,11 +26,15 @@ import * as ExpoLocation from 'expo-location';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { Search, MapPin, ChevronRight, Filter, X, CheckCircle2 } from 'lucide-react-native';
+import { restaurantService } from '../services/restaurantService';
+import { Search, MapPin, Clock, Filter, ChevronRight, Star, Heart, Truck, ShoppingBag, Map as MapIcon, X, CheckCircle2, Check } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useLocationStore } from '../store/locationStore';
 import { useAuthStore } from '../store/authStore';
-export const CustomerHome = ({ navigation }: any) => {
+import { useNavigation } from '@react-navigation/native';
+export const CustomerHome = () => {
+    const navigation = useNavigation<any>();
+    const queryClient = useQueryClient();
     const { theme, isDark } = useTheme();
     const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -45,11 +49,45 @@ export const CustomerHome = ({ navigation }: any) => {
 
     const { selectedLocation, setSelectedLocation } = useLocationStore();
     const { profile } = useAuthStore();
-    const queryClient = useQueryClient();
     const [mapRegion, setMapRegion] = React.useState<any>(null);
+    // Live GPS position — used for distance calculations (separate from delivery address)
+    const [gpsLocation, setGpsLocation] = React.useState<{ lat: number; lng: number } | null>(null);
     const mapRef = React.useRef<MapView | null>(null);
     const googlePlacesRef = React.useRef<any>(null);
     const modalY = React.useRef(new Animated.Value(0)).current;
+    const scrollY = React.useRef(new Animated.Value(0)).current;
+    const [hasAutoPrompted, setHasAutoPrompted] = React.useState(false);
+    const modalEntryAnim = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+    
+    // 5. Done Button Animation & State
+    const [isLocationSelected, setIsLocationSelected] = React.useState(false);
+    const [isAutoTrigger, setIsAutoTrigger] = React.useState(false);
+    const doneButtonAnim = React.useRef(new Animated.Value(120)).current;
+
+    const showDoneButton = () => {
+        setHasAutoPrompted(true); // LOCK immediately to prevent any re-popups during selection
+        setIsLocationSelected(true);
+        Animated.spring(doneButtonAnim, {
+            toValue: 0,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const closeLocationModal = () => {
+        setHasAutoPrompted(true);
+        setIsLocationSelected(false);
+        doneButtonAnim.setValue(120); // Reset for next time
+        Animated.timing(modalEntryAnim, {
+            toValue: Dimensions.get('window').height,
+            duration: 800, // Balanced responsive close
+            easing: (t) => Math.pow(t, 4), // Smooth acceleration mirror
+            useNativeDriver: true,
+        }).start(() => {
+            setLocationModalVisible(false);
+        });
+    };
 
     const animateModal = (toValue: number) => {
         Animated.timing(modalY, {
@@ -72,6 +110,21 @@ export const CustomerHome = ({ navigation }: any) => {
             mapRef.current?.animateToRegion(region, 500);
         }
     }, [selectedLocation]);
+
+    // Get live GPS for distance accuracy (independently of the delivery address)
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+                    setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+                }
+            } catch (err) {
+                console.warn('[Home] GPS for distance failed:', err);
+            }
+        })();
+    }, []);
 
     // 1. Load default address if none is selected
     useQuery({
@@ -132,6 +185,7 @@ export const CustomerHome = ({ navigation }: any) => {
     }, [selectedLocation]);
 
     // 3. Fetch saved addresses for the modal
+
     const { data: savedAddresses } = useQuery({
         queryKey: ['user_addresses', profile?.id],
         queryFn: async () => {
@@ -153,19 +207,19 @@ export const CustomerHome = ({ navigation }: any) => {
     const { data: restaurants, isLoading, refetch, isRefetching } = useQuery({
         queryKey: ['restaurants', selectedCategory, selectedLocation?.lat, selectedLocation?.lng],
         queryFn: async () => {
-            if (!selectedLocation?.lat || !selectedLocation?.lng) {
-                // Return empty if no location yet
-                return [];
-            }
+            // Use the active selected location (GPS or searched) as the single source of truth
+            const coordLat = selectedLocation?.lat;
+            const coordLng = selectedLocation?.lng;
 
-            // Fetch with distance calc
+            if (!coordLat || !coordLng) return [];
+
             const { data, error } = await supabase.rpc('get_restaurants_with_distance', {
-                u_lat: selectedLocation.lat,
-                u_lng: selectedLocation.lng
+                u_lat: coordLat,
+                u_lng: coordLng
             });
 
             if (error) {
-                console.error("RPC Error:", error);
+                console.error('RPC Error:', error);
                 throw error;
             }
 
@@ -176,6 +230,87 @@ export const CustomerHome = ({ navigation }: any) => {
             return result;
         }
     });
+
+    // 4. Auto-trigger modal after restaurants load (One-time)
+    React.useEffect(() => {
+        // Only trigger if restaurants are loaded and we haven't prompted yet
+        if (!hasAutoPrompted && !isLoading && restaurants && restaurants.length > 0) {
+            const timer = setTimeout(() => {
+                setIsAutoTrigger(true); // Auto trigger uses slow animation
+                setLocationModalVisible(true);
+                setHasAutoPrompted(true);
+            }, 800); // Slight delay after restaurants appear
+            return () => clearTimeout(timer);
+        }
+    }, [isLoading, restaurants, hasAutoPrompted]);
+
+    // 5. Modal Animation Control -- Monitors visibility changes (Auto or Manual)
+    React.useEffect(() => {
+        if (locationModalVisible) {
+            // Ensure map points to relevant context before showing
+            if (gpsLocation && !selectedLocation) {
+                const region = {
+                    latitude: gpsLocation.lat,
+                    longitude: gpsLocation.lng,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                };
+                setMapRegion(region);
+                mapRef.current?.animateToRegion(region, 500);
+            }
+
+            // Super smooth decelerating animation
+            // Speed logic: Auto-start is slow (2.5s), Manual is snappy (400ms)
+            modalEntryAnim.stopAnimation((value) => {
+                const targetDuration = isAutoTrigger ? 2500 : 400;
+                if (value > 0) {
+                    Animated.timing(modalEntryAnim, {
+                        toValue: 0,
+                        duration: targetDuration,
+                        easing: isAutoTrigger ? (t) => 1 - Math.pow(1 - t, 6) : (t) => 1 - Math.pow(1 - t, 3), 
+                        useNativeDriver: true,
+                    }).start();
+                }
+            });
+        } else {
+            // Ensure off-screen when hidden
+            modalEntryAnim.setValue(Dimensions.get('window').height);
+        }
+    }, [locationModalVisible, modalEntryAnim, isAutoTrigger]);
+
+    const prefetchRestaurant = async (locationId: string, restaurantId: string) => {
+        if (!locationId || !restaurantId) return;
+        
+        // Prefetch location details
+        queryClient.prefetchQuery({
+            queryKey: ['location', locationId],
+            queryFn: () => restaurantService.getLocationDetails(locationId),
+            staleTime: 1000 * 60 * 10, // 10 minutes
+        });
+
+        // Prefetch restaurant info
+        queryClient.prefetchQuery({
+            queryKey: ['restaurant', restaurantId],
+            queryFn: () => restaurantService.getRestaurantInfo(restaurantId),
+            staleTime: 1000 * 60 * 10,
+        });
+
+        // Prefetch menu
+        queryClient.prefetchQuery({
+            queryKey: ['menu', restaurantId, locationId],
+            queryFn: () => restaurantService.getBranchMenu(restaurantId, locationId),
+            staleTime: 1000 * 60 * 5, // 5 minutes
+        });
+    };
+
+    // Auto-prefetch top 5 restaurants on load
+    useEffect(() => {
+        if (restaurants && restaurants.length > 0) {
+            restaurants.slice(0, 5).forEach((r: any) => {
+                prefetchRestaurant(r.id, r.restaurant_id);
+            });
+        }
+    }, [restaurants]);
 
     const filteredRestaurants = React.useMemo(() => {
         if (!restaurants) return [];
@@ -192,8 +327,87 @@ export const CustomerHome = ({ navigation }: any) => {
 
     const tempCoords = React.useRef<{ lat: number, lng: number } | null>(null);
 
+    const stickyOpacity = scrollY.interpolate({
+        inputRange: [120, 240],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const stickyTranslateY = scrollY.interpolate({
+        inputRange: [120, 240],
+        outputRange: [-30, 0],
+        extrapolate: 'clamp',
+    });
+
+    const stickyScale = scrollY.interpolate({
+        inputRange: [120, 240],
+        outputRange: [0.95, 1],
+        extrapolate: 'clamp',
+    });
+
+    const renderSearchBar = (isSticky = false) => (
+        <View style={[
+            styles.searchBar,
+            { backgroundColor: theme.surface },
+            isSticky && { 
+                height: 50, 
+                borderRadius: 25, 
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 10
+            }
+        ]}>
+            <Search size={isSticky ? 18 : 20} color={theme.textMuted} style={styles.searchIcon} />
+            <TextInput
+                placeholder="Search restaurants or food..."
+                placeholderTextColor={theme.textMuted}
+                style={[styles.searchInput, { color: theme.text }, isSticky && { fontSize: 14 }]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Text style={{ color: theme.textMuted, marginRight: 8 }}>✕</Text>
+                </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.filterButton}>
+                <Filter size={isSticky ? 18 : 20} color={theme.accent} />
+            </TouchableOpacity>
+        </View>
+    );
+
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
+            {/* Sticky Search Bar Overlay */}
+            <Animated.View 
+                pointerEvents="box-none"
+                style={[
+                    styles.stickyHeader, 
+                    { 
+                        backgroundColor: 'transparent', // Container is transparent
+                        opacity: stickyOpacity,
+                        transform: [
+                            { translateY: stickyTranslateY },
+                            { scale: stickyScale }
+                        ],
+                        zIndex: 100,
+                    }
+                ]}
+            >
+                <View style={[
+                    styles.stickyInner, 
+                    { 
+                        backgroundColor: theme.background,
+                        borderBottomColor: theme.surface,
+                        borderBottomWidth: StyleSheet.hairlineWidth
+                    }
+                ]}>
+                    {renderSearchBar(true)}
+                </View>
+            </Animated.View>
+
             {/* Header / Location */}
             <View style={styles.header}>
                 <View>
@@ -201,6 +415,7 @@ export const CustomerHome = ({ navigation }: any) => {
                     <TouchableOpacity
                         style={styles.locationSelector}
                         onPress={() => {
+                            setIsAutoTrigger(false); // Manual trigger uses snappy animation
                             setModalLocationFetched(false);
                             setLocationModalVisible(true);
                         }}
@@ -220,8 +435,13 @@ export const CustomerHome = ({ navigation }: any) => {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView 
+            <Animated.ScrollView 
                 showsVerticalScrollIndicator={false}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl
                         refreshing={isRefetching}
@@ -232,24 +452,7 @@ export const CustomerHome = ({ navigation }: any) => {
             >
                 {/* Search Bar */}
                 <View style={styles.searchContainer}>
-                    <View style={[styles.searchBar, { backgroundColor: theme.surface }]}>
-                        <Search size={20} color={theme.textMuted} style={styles.searchIcon} />
-                        <TextInput
-                            placeholder="Search restaurants or food..."
-                            placeholderTextColor={theme.textMuted}
-                            style={[styles.searchInput, { color: theme.text }]}
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                        {searchQuery.length > 0 && (
-                            <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                <Text style={{ color: theme.textMuted, marginRight: 8 }}>✕</Text>
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity style={styles.filterButton}>
-                            <Filter size={20} color={theme.accent} />
-                        </TouchableOpacity>
-                    </View>
+                    {renderSearchBar()}
                 </View>
 
                 {/* Categories */}
@@ -299,15 +502,20 @@ export const CustomerHome = ({ navigation }: any) => {
                             key={item.id}
                             style={[styles.restaurantCard, { backgroundColor: theme.surface }]}
                             onPress={() => navigation.navigate('RestaurantDetails', { id: item.id })}
+                            onPressIn={() => prefetchRestaurant(item.id, item.restaurant_id)}
                         >
                             <Image
                                 source={item.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                                 style={styles.restaurantImage}
                                 contentFit="cover"
+                                cachePolicy="memory-disk"
+                                transition={200}
                             />
                             <View style={styles.restaurantDetails}>
                                 <View style={styles.row}>
-                                    <Text style={[styles.restaurantName, { color: theme.text }]}>{item.name}</Text>
+                                    <Text style={[styles.restaurantName, { color: theme.text }]}>
+                                        {item.name}{item.suburb ? ` • ${item.suburb}` : ''}
+                                    </Text>
                                     <Text style={[styles.rating, { color: theme.text }]}>⭐ {item.rating_avg != null ? Number(item.rating_avg).toFixed(1) : 'New'}</Text>
                                 </View>
                                 <Text style={[styles.categories, { color: theme.textMuted }]}>{item.categories ? item.categories.join(' • ') : 'Food & Drink'}</Text>
@@ -323,14 +531,20 @@ export const CustomerHome = ({ navigation }: any) => {
                         </TouchableOpacity>
                     ))
                 )}
-            </ScrollView>
+            </Animated.ScrollView>
             <Modal
                 visible={locationModalVisible}
-                animationType="slide"
-                transparent={false}
+                animationType="none"
+                transparent={true}
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={{ flex: 1, backgroundColor: theme.background }}>
+                    <Animated.View 
+                        style={{ 
+                            flex: 1, 
+                            backgroundColor: theme.background,
+                            transform: [{ translateY: modalEntryAnim }]
+                        }}
+                    >
                         {/* Full Screen Map */}
                         <MapView
                             ref={mapRef}
@@ -365,7 +579,7 @@ export const CustomerHome = ({ navigation }: any) => {
 
                         <View style={{ position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                             <TouchableOpacity
-                                onPress={() => setLocationModalVisible(false)}
+                                onPress={closeLocationModal}
                                 style={{
                                     width: 44,
                                     height: 44,
@@ -405,6 +619,7 @@ export const CustomerHome = ({ navigation }: any) => {
                                                 lng: details.geometry.location.lng,
                                             };
                                             setSelectedLocation(newLoc);
+                                            showDoneButton();
                                         }
                                     }}
                                     query={{
@@ -474,8 +689,8 @@ export const CustomerHome = ({ navigation }: any) => {
                                 left: 0,
                                 right: 0,
                                 height: Dimensions.get('window').height * 0.65,
-                                borderTopLeftRadius: 32, 
-                                borderTopRightRadius: 32, 
+                                borderTopLeftRadius: 48, 
+                                borderTopRightRadius: 48, 
                                 backgroundColor: theme.background, 
                                 padding: 24,
                                 transform: [{ translateY: modalY }],
@@ -491,21 +706,115 @@ export const CustomerHome = ({ navigation }: any) => {
 
                             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                                 <View style={{ gap: 20, paddingBottom: 40 }}>
-                                    {/* Selected Location Card */}
-                                    {selectedLocation && (
-                                        <View style={{ backgroundColor: theme.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: theme.accent + '30' }}>
-                                            <Text style={{ fontSize: 12, fontWeight: 'bold', color: theme.accent, textTransform: 'uppercase', marginBottom: 12, letterSpacing: 0.5 }}>Selected Spot</Text>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: theme.accent + '15', justifyContent: 'center', alignItems: 'center' }}>
+                                    <View>
+                                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.textMuted, textTransform: 'uppercase', marginBottom: 12, letterSpacing: 1 }}>Selected Spot</Text>
+                                        
+                                        {/* GPS Capture Button */}
+                                        <TouchableOpacity
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                padding: 18,
+                                                backgroundColor: theme.surface,
+                                                borderRadius: 20,
+                                                gap: 12,
+                                                borderWidth: 2,
+                                                borderColor: selectedLocation?.label === 'Current Spot' ? theme.accent : theme.border,
+                                                marginBottom: 12,
+                                                shadowColor: selectedLocation?.label === 'Current Spot' ? theme.accent : 'transparent',
+                                                shadowOffset: { width: 0, height: 4 },
+                                                shadowOpacity: selectedLocation?.label === 'Current Spot' ? 0.1 : 0,
+                                                shadowRadius: 10,
+                                                elevation: selectedLocation?.label === 'Current Spot' ? 4 : 0
+                                            }}
+                                            onPress={async () => {
+                                                setIsFetchingLocation(true);
+                                                try {
+                                                    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+                                                    if (status === 'granted') {
+                                                        const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+                                                        const [rev] = await ExpoLocation.reverseGeocodeAsync({
+                                                            latitude: loc.coords.latitude,
+                                                            longitude: loc.coords.longitude
+                                                        });
+                                                        if (rev) {
+                                                            const newLoc = {
+                                                                label: 'Current Spot',
+                                                                city: rev.city || 'Current Location',
+                                                                suburb: rev.district || rev.subregion || 'Nearby',
+                                                                street: rev.name || '',
+                                                                lat: loc.coords.latitude,
+                                                                lng: loc.coords.longitude
+                                                            };
+                                                            setSelectedLocation(newLoc);
+                                                            const region = {
+                                                                latitude: loc.coords.latitude,
+                                                                longitude: loc.coords.longitude,
+                                                                latitudeDelta: 0.01,
+                                                                longitudeDelta: 0.01,
+                                                            };
+                                                            setMapRegion(region);
+                                                            mapRef.current?.animateToRegion(region, 500);
+                                                            
+                                                            // Trigger manual Done button instead of auto-close
+                                                            showDoneButton();
+                                                        }
+                                                    } else {
+                                                        Alert.alert('Permission Denied', 'Location permission is required.');
+                                                    }
+                                                } catch (error) {
+                                                    console.error('GPS Error:', error);
+                                                } finally {
+                                                    setIsFetchingLocation(false);
+                                                }
+                                            }}
+                                        >
+                                            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: theme.accent + '20', justifyContent: 'center', alignItems: 'center' }}>
+                                                {isFetchingLocation ? (
+                                                    <ActivityIndicator size="small" color={theme.accent} />
+                                                ) : (
                                                     <MapPin size={24} color={theme.accent} />
+                                                )}
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>
+                                                    {isFetchingLocation ? 'Locating...' : 'Use Current GPS'}
+                                                </Text>
+                                                <Text style={{ color: theme.textMuted, fontSize: 12 }}>Pinpoint your exact delivery spot</Text>
+                                            </View>
+                                        </TouchableOpacity>
+
+                                        {/* Selected Location Card (Redesigned to look like a STATUS, not a button) */}
+                                        {selectedLocation && (
+                                            <View 
+                                                style={{ 
+                                                    backgroundColor: theme.surface + '80', // More translucent
+                                                    borderRadius: 24, 
+                                                    padding: 20, 
+                                                    borderWidth: 1.5, 
+                                                    borderColor: theme.border,
+                                                    borderStyle: 'dashed', // Differentiates from solid buttons
+                                                    marginTop: 8
+                                                }}
+                                            >
+                                                <View style={{ position: 'absolute', top: -10, left: 20, backgroundColor: theme.background, paddingHorizontal: 12, borderRadius: 4 }}>
+                                                    <Text style={{ fontSize: 10, fontWeight: 'bold', color: theme.accent, letterSpacing: 1 }}>CURRENT ACTIVE SPOT</Text>
                                                 </View>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>{selectedLocation.suburb || selectedLocation.city}</Text>
-                                                    <Text style={{ color: theme.textMuted, fontSize: 13 }}>{selectedLocation.street ? `${selectedLocation.street}, ` : ''}{selectedLocation.city}</Text>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                                                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: theme.accent + '15', justifyContent: 'center', alignItems: 'center' }}>
+                                                        <MapPin size={22} color={theme.accent} />
+                                                    </View>
+                                                    <View style={{ flex: 1 }}>
+                                                        <Text style={{ color: theme.text, fontWeight: '700', fontSize: 17 }}>{selectedLocation.suburb || selectedLocation.city}</Text>
+                                                        <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>{selectedLocation.street ? `${selectedLocation.street}, ` : ''}{selectedLocation.city}</Text>
+                                                    </View>
+                                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#10b98120', justifyContent: 'center', alignItems: 'center' }}>
+                                                        <Check size={14} color="#10b981" />
+                                                    </View>
                                                 </View>
                                             </View>
-                                        </View>
-                                    )}
+                                        )}
+                                    </View>
 
                                     {/* Saved Addresses List */}
                                     {savedAddresses && savedAddresses.length > 0 && (
@@ -525,7 +834,10 @@ export const CustomerHome = ({ navigation }: any) => {
                                                         borderWidth: selectedLocation?.id === addr.id ? 1 : 0,
                                                         borderColor: theme.accent
                                                     }}
-                                                    onPress={() => setSelectedLocation(addr)}
+                                                    onPress={() => {
+                                                        setSelectedLocation(addr);
+                                                        showDoneButton();
+                                                    }}
                                                 >
                                                     <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.border + '20', justifyContent: 'center', alignItems: 'center' }}>
                                                         <MapPin size={20} color={theme.textMuted} />
@@ -540,99 +852,44 @@ export const CustomerHome = ({ navigation }: any) => {
                                         </View>
                                     )}
 
-                                    {/* GPS Capture */}
-                                    <TouchableOpacity
-                                        style={{
-                                            flexDirection: 'row',
-                                            alignItems: 'center',
-                                            padding: 16,
-                                            backgroundColor: theme.surface,
-                                            borderRadius: 16,
-                                            gap: 12,
-                                            borderWidth: 1,
-                                            borderColor: theme.surface
-                                        }}
-                                        onPress={async () => {
-                                            setIsFetchingLocation(true);
-                                            try {
-                                                const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-                                                if (status === 'granted') {
-                                                    const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
-                                                    const [rev] = await ExpoLocation.reverseGeocodeAsync({
-                                                        latitude: loc.coords.latitude,
-                                                        longitude: loc.coords.longitude
-                                                    });
-                                                    if (rev) {
-                                                        const newLoc = {
-                                                            city: rev.city || 'Current Location',
-                                                            suburb: rev.district || rev.subregion || 'Nearby',
-                                                            street: rev.name || '',
-                                                            lat: loc.coords.latitude,
-                                                            lng: loc.coords.longitude
-                                                        };
-                                                        setSelectedLocation(newLoc);
-                                                        const region = {
-                                                            latitude: loc.coords.latitude,
-                                                            longitude: loc.coords.longitude,
-                                                            latitudeDelta: 0.01,
-                                                            longitudeDelta: 0.01,
-                                                        };
-                                                        setMapRegion(region);
-                                                        mapRef.current?.animateToRegion(region, 500);
-                                                    }
-                                                } else {
-                                                    Alert.alert('Permission Denied', 'Location permission is required.');
-                                                }
-                                            } catch (error) {
-                                                console.error('GPS Error:', error);
-                                            } finally {
-                                                setIsFetchingLocation(false);
-                                            }
-                                        }}
-                                    >
-                                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: theme.accent + '20', justifyContent: 'center', alignItems: 'center' }}>
-                                            {isFetchingLocation ? (
-                                                <ActivityIndicator size="small" color={theme.accent} />
-                                            ) : (
-                                                <MapPin size={20} color={theme.accent} />
-                                            )}
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={{ color: theme.text, fontWeight: '600' }}>
-                                                {isFetchingLocation ? 'Locating...' : 'Use Current GPS Location'}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-
-                                    {/* Confirm Button */}
-                                    <TouchableOpacity
-                                        style={{
-                                            backgroundColor: theme.accent,
-                                            height: 56,
-                                            borderRadius: 28,
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            marginTop: 10,
-                                            shadowColor: theme.accent,
-                                            shadowOffset: { width: 0, height: 4 },
-                                            shadowOpacity: 0.3,
-                                            shadowRadius: 8,
-                                            elevation: 5
-                                        }}
-                                        onPress={() => {
-                                            if (selectedLocation) {
-                                                setLocationModalVisible(false);
-                                            } else {
-                                                Alert.alert('Pick a spot', 'Please select a location on the map or from the list.');
-                                            }
-                                        }}
-                                    >
-                                        <Text style={{ color: 'white', fontSize: 17, fontWeight: 'bold' }}>Confirm Delivery Spot</Text>
-                                    </TouchableOpacity>
                                 </View>
                             </ScrollView>
+
+                            {/* Floating DONE Button */}
+                            {isLocationSelected && (
+                                <Animated.View 
+                                    style={{ 
+                                        position: 'absolute', 
+                                        bottom: 30, 
+                                        left: 20, 
+                                        right: 20,
+                                        transform: [{ translateY: doneButtonAnim }]
+                                    }}
+                                >
+                                    <TouchableOpacity
+                                        onPress={closeLocationModal}
+                                        style={{
+                                            backgroundColor: theme.accent,
+                                            height: 64,
+                                            borderRadius: 32,
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            flexDirection: 'row',
+                                            gap: 12,
+                                            shadowColor: theme.accent,
+                                            shadowOffset: { width: 0, height: 8 },
+                                            shadowOpacity: 0.4,
+                                            shadowRadius: 15,
+                                            elevation: 8,
+                                        }}
+                                    >
+                                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Done</Text>
+                                        <ChevronRight size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            )}
                         </Animated.View>
-                    </View>
+                    </Animated.View>
                 </TouchableWithoutFeedback>
             </Modal>
         </View>
@@ -648,6 +905,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 60,
         paddingBottom: 20,
+    },
+    stickyHeader: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+    },
+    stickyInner: {
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
     },
     locationLabel: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' },
     locationSelector: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },

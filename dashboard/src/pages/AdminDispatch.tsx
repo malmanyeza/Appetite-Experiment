@@ -16,8 +16,8 @@ export const AdminDispatch = () => {
         queryFn: adminService.getAllDrivers
     });
 
-    // Only show orders that need dispatching: confirmed or ready, but strictly no driver assigned
-    const readyOrders = orders?.filter(order => !order.driver_id && (order.status === 'confirmed' || order.status === 'ready')) || [];
+    // Only show orders that need dispatching: confirmed or ready, but strictly no driver assigned and NOT a pickup order
+    const readyOrders = orders?.filter(order => !order.driver_id && (order.status === 'confirmed' || order.status === 'ready_for_pickup') && order.fulfillment_type !== 'pickup') || [];
     const onlineDrivers = drivers?.filter(driver => driver.driver_profiles?.[0]?.is_online) || [];
 
     const [selectedOrder, setSelectedOrder] = useState<any>(null);

@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import { useQuery } from '@tanstack/react-query';
 import {
     User,
     LogOut,
@@ -27,6 +28,20 @@ import {
 export const AccountScreen = ({ navigation }: any) => {
     const { theme } = useTheme();
     const { user, profile, roles, activeRole, setActiveRole, signOut } = useAuthStore();
+    
+    const { data: driverProfile } = useQuery({
+        queryKey: ['driver-profile', user?.id],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('driver_profiles')
+                .select('status')
+                .eq('user_id', user?.id)
+                .single();
+            if (error && error.code !== 'PGRST116') throw error;
+            return data || null;
+        },
+        enabled: !!user?.id && !roles.includes('driver')
+    });
 
     const handleSignOut = () => {
         Alert.alert(
@@ -164,7 +179,11 @@ export const AccountScreen = ({ navigation }: any) => {
                     >
                         <Briefcase size={16} color="white" />
                         <Text style={styles.roleBadgeText}>
-                            {roles.includes('driver') ? 'Switch to Driver' : 'Become a Driver'}
+                            {roles.includes('driver') 
+                                ? 'Switch to Driver' 
+                                : driverProfile?.status === 'pending'
+                                    ? 'Application Under Review'
+                                    : 'Become a Driver'}
                         </Text>
                     </TouchableOpacity>
                 ) : (

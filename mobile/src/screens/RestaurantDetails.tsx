@@ -6,14 +6,17 @@ import {
     TouchableOpacity,
     StyleSheet,
     ActivityIndicator,
-    RefreshControl
+    RefreshControl,
+    Animated,
+    TextInput
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { ChevronLeft, Share2, Info, Plus, Minus, X, Check, MapPin, Clock } from 'lucide-react-native';
+import { ChevronLeft, Share2, Info, Plus, Minus, X, Check, MapPin, Clock, Search } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import { useCartStore } from '../store/cartStore';
+import { restaurantService } from '../services/restaurantService';
 
 export const RestaurantDetails = ({ route, navigation }: any) => {
     const { id } = route.params;
@@ -22,74 +25,25 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
 
     const [selectedItemForOptions, setSelectedItemForOptions] = useState<any>(null);
     const [tempSelectedAddons, setTempSelectedAddons] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const scrollY = React.useRef(new Animated.Value(0)).current;
 
     const { data: locationData, isLoading: loadingLoc, error: errorLoc, refetch: refetchLoc, isRefetching: isRefetchingLoc } = useQuery({
         queryKey: ['location', id],
-        queryFn: async () => {
-            console.log("DEBUG: Starting location fetch for ID:", id);
-            const { data, error } = await supabase.from('restaurant_locations').select('*').eq('id', id).single();
-            if (error) {
-                console.error("DEBUG: location fetch error:", error);
-                throw error;
-            }
-            console.log("DEBUG: Location fetched successfully:", data?.location_name);
-            return data;
-        }
+        queryFn: () => restaurantService.getLocationDetails(id)
     });
 
     const restaurantId = locationData?.restaurant_id;
 
     const { data: restaurant, isLoading: loadingRest, error: errorRest, refetch: refetchRest, isRefetching: isRefetchingRest } = useQuery({
         queryKey: ['restaurant', restaurantId],
-        queryFn: async () => {
-            console.log("DEBUG: Starting restaurant fetch for ID:", restaurantId);
-            const { data, error } = await supabase.from('restaurants').select('*').eq('id', restaurantId).single();
-            if (error) {
-                console.error("DEBUG: restaurant fetch error:", error);
-                throw error;
-            }
-            console.log("DEBUG: Restaurant fetched successfully:", data?.name);
-            return data;
-        },
+        queryFn: () => restaurantService.getRestaurantInfo(restaurantId),
         enabled: !!restaurantId
     });
 
     const { data: menu, isLoading: loadingMenu, error: errorMenu, refetch: refetchMenu, isRefetching: isRefetchingMenu } = useQuery({
         queryKey: ['menu', restaurantId, id],
-        queryFn: async () => {
-            console.log("DEBUG: Starting menu fetch for restaurant:", restaurantId, "at location:", id);
-            // Get all items
-            const { data: items, error: mError } = await supabase
-                .from('menu_items')
-                .select('*')
-                .eq('restaurant_id', restaurantId)
-                .eq('is_available', true)
-                .order('category');
-            if (mError) {
-                console.error("DEBUG: menu_items fetch error:", mError);
-                throw mError;
-            }
-
-            // Get location-specific availability
-            const { data: availability, error: aError } = await supabase
-                .from('location_menu_items')
-                .select('menu_item_id, is_available')
-                .eq('location_id', id);
-            
-            if (aError) {
-                console.error("DEBUG: location_menu_items fetch error:", aError);
-                throw aError;
-            }
-
-            console.log("DEBUG: Menu and availability fetched. Processing items...");
-            // Filter out items that are explicitly set to unavailable for this location
-            const result = (items || []).filter((item: any) => {
-                const setting = availability?.find((a: any) => a.menu_item_id === item.id);
-                return setting ? setting.is_available : true;
-            });
-            console.log("DEBUG: Final menu items count:", result.length);
-            return result;
-        },
+        queryFn: () => restaurantService.getBranchMenu(restaurantId, id),
         enabled: !!restaurantId
     });
 
@@ -130,6 +84,36 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
         ]);
     };
 
+    const filteredMenu = React.useMemo(() => {
+        if (!menu) return [];
+        if (!searchQuery) return menu;
+        return menu.filter((item: any) => 
+            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+    }, [menu, searchQuery]);
+
+    const categories = Array.from(new Set(menu?.map((i: any) => i.category))) as string[];
+    const filteredCategories = Array.from(new Set(filteredMenu.map((i: any) => i.category))) as string[];
+
+    const stickyOpacity = scrollY.interpolate({
+        inputRange: [140, 220],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const stickyTranslateY = scrollY.interpolate({
+        inputRange: [140, 220],
+        outputRange: [-20, 0],
+        extrapolate: 'clamp',
+    });
+
+    const stickyScale = scrollY.interpolate({
+        inputRange: [140, 220],
+        outputRange: [0.98, 1],
+        extrapolate: 'clamp',
+    });
+
     // More robust loading check: wait for location first, then for restaurant/menu if ID exists
     const actuallyLoading = loadingLoc || (!!restaurantId && (loadingRest || loadingMenu));
     const anyError = errorLoc || errorRest || errorMenu;
@@ -164,12 +148,65 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
         </View>
     );
 
-    const categories = Array.from(new Set(menu?.map((i: any) => i.category))) as string[];
-
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView 
+            {/* Sticky Header Overlay */}
+            <Animated.View 
+                pointerEvents="box-none"
+                style={[
+                    styles.stickyHeader, 
+                    { 
+                        opacity: stickyOpacity,
+                        transform: [
+                            { translateY: stickyTranslateY },
+                            { scale: stickyScale }
+                        ],
+                        zIndex: 100,
+                    }
+                ]}
+            >
+                <View style={[
+                    styles.stickyInner, 
+                    { 
+                        backgroundColor: theme.background,
+                        borderBottomColor: theme.surface,
+                        borderBottomWidth: StyleSheet.hairlineWidth
+                    }
+                ]}>
+                    <View style={styles.stickyContent}>
+                        <TouchableOpacity 
+                            style={[styles.stickyIconButton, { backgroundColor: theme.surface }]} 
+                            onPress={() => navigation.goBack()}
+                        >
+                            <ChevronLeft color={theme.text} size={22} />
+                        </TouchableOpacity>
+                        
+                        <View style={[styles.stickySearchBar, { backgroundColor: theme.surface }]}>
+                            <Search size={16} color={theme.textMuted} style={{ marginRight: 8 }} />
+                            <TextInput
+                                placeholder="Search in menu..."
+                                placeholderTextColor={theme.textMuted}
+                                style={[styles.stickySearchInput, { color: theme.text }]}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                            />
+                            {searchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                    <X size={14} color={theme.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+                </View>
+            </Animated.View>
+
+            <Animated.ScrollView 
                 showsVerticalScrollIndicator={false}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                scrollEventThrottle={16}
                 refreshControl={
                     <RefreshControl
                         refreshing={isRefreshing}
@@ -184,6 +221,8 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                         source={restaurant?.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                         style={styles.heroImage}
                         contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={200}
                     />
                     <View style={styles.navOverlay}>
                         <TouchableOpacity style={[styles.iconButton, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => navigation.goBack()}>
@@ -216,10 +255,9 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                                     </Text>
                                 </View>
                             )}
-                            {(locationData.phone || locationData.email) && (
+                            {locationData.email && (
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4, marginLeft: 20 }}>
-                                    {locationData.phone && <Text style={{ color: theme.accent, fontSize: 12 }}>📞 {locationData.phone}</Text>}
-                                    {locationData.email && <Text style={{ color: theme.accent, fontSize: 12 }}>✉️ {locationData.email}</Text>}
+                                    <Text style={{ color: theme.accent, fontSize: 12 }}>✉️ {locationData.email}</Text>
                                 </View>
                             )}
                         </View>
@@ -227,8 +265,8 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
 
                     <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: theme.text }]}>⭐ {restaurant.rating_avg}</Text>
-                            <Text style={[styles.statLabel, { color: theme.textMuted }]}>{restaurant.rating_count}+ ratings</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>⭐ {locationData?.rating_avg || restaurant?.rating_avg}</Text>
+                            <Text style={[styles.statLabel, { color: theme.textMuted }]}>{locationData?.rating_count || restaurant?.rating_count || 0}+ ratings</Text>
                         </View>
                         <View style={[styles.divider, { backgroundColor: theme.border }]} />
                         <View style={styles.statItem}>
@@ -243,34 +281,69 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                     </View>
                 </View>
 
+                {/* Search Bar - Inline (Static) */}
+                <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+                    <View style={[styles.inlineSearchBar, { backgroundColor: theme.surface }]}>
+                        <Search size={18} color={theme.textMuted} style={{ marginRight: 10 }} />
+                        <TextInput
+                            placeholder="Search dishes, drinks..."
+                            placeholderTextColor={theme.textMuted}
+                            style={[styles.inlineSearchInput, { color: theme.text }]}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <X size={18} color={theme.textMuted} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+
                 {/* Menu */}
                 <View style={styles.menuSection}>
-                    {categories.map((cat: string) => (
-                        <View key={cat} style={styles.categorySection}>
-                            <Text style={[styles.categoryTitle, { color: theme.text }]}>{cat}</Text>
-                            {menu?.filter((i: any) => i.category === cat).map((item: any) => (
-                                <View key={item.id} style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-                                    <View style={styles.itemText}>
-                                        <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
-                                        <Text style={[styles.itemDesc, { color: theme.textMuted }]} numberOfLines={2}>{item.description}</Text>
-                                        <Text style={[styles.itemPrice, { color: theme.accent }]}>${item.price}</Text>
-                                    </View>
-                                    <View style={styles.itemAction}>
-                                        {item.image_url && <Image source={item.image_url} style={styles.itemImage} contentFit="cover" />}
-                                        <TouchableOpacity
-                                            style={[styles.addButton, { backgroundColor: theme.accent }]}
-                                            onPress={() => addToCart(item)}
-                                        >
-                                            <Plus size={20} color="#FFF" />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            ))}
+                    {filteredCategories.length === 0 && searchQuery !== '' ? (
+                        <View style={{ padding: 40, alignItems: 'center' }}>
+                            <Search size={48} color={theme.textMuted} style={{ opacity: 0.3, marginBottom: 16 }} />
+                            <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>No items found</Text>
+                            <Text style={{ color: theme.textMuted, marginTop: 4 }}>Try searching for something else</Text>
                         </View>
-                    ))}
+                    ) : (
+                        filteredCategories.map((cat: string) => (
+                            <View key={cat} style={styles.categorySection}>
+                                <Text style={[styles.categoryTitle, { color: theme.text }]}>{cat}</Text>
+                                {filteredMenu?.filter((i: any) => i.category === cat).map((item: any) => (
+                                    <View key={item.id} style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+                                        <View style={styles.itemText}>
+                                            <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
+                                            <Text style={[styles.itemDesc, { color: theme.textMuted }]} numberOfLines={2}>{item.description}</Text>
+                                            <Text style={[styles.itemPrice, { color: theme.accent }]}>${item.price}</Text>
+                                        </View>
+                                        <View style={styles.itemAction}>
+                                            {item.image_url && (
+                                                <Image 
+                                                    source={item.image_url} 
+                                                    style={styles.itemImage} 
+                                                    contentFit="cover" 
+                                                    cachePolicy="memory-disk"
+                                                    transition={200}
+                                                />
+                                            )}
+                                            <TouchableOpacity
+                                                style={[styles.addButton, { backgroundColor: theme.accent }]}
+                                                onPress={() => addToCart(item)}
+                                            >
+                                                <Plus size={20} color="#FFF" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        ))
+                    )}
                 </View>
                 <View style={{ height: 120 }} />
-            </ScrollView>
+            </Animated.ScrollView>
 
             {/* Sticky Cart Bar */}
             {cartItems.length > 0 && (
@@ -357,7 +430,8 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingHorizontal: 20
+        paddingHorizontal: 20,
+        zIndex: 10
     },
     iconButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
     infoSection: { padding: 20 },
@@ -505,5 +579,69 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontWeight: 'bold'
+    },
+
+    // Sticky Header Styles
+    stickyHeader: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+    },
+    stickyInner: {
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
+    },
+    stickyContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    stickyIconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    stickySearchBar: {
+        flex: 1,
+        height: 40,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    stickySearchInput: {
+        flex: 1,
+        fontSize: 14,
+        height: '100%',
+        paddingVertical: 0,
+    },
+
+    // Inline Search Styles
+    inlineSearchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 52,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        marginTop: 10,
+    },
+    inlineSearchInput: {
+        flex: 1,
+        fontSize: 16,
+        height: '100%',
     }
 });

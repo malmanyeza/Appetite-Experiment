@@ -142,16 +142,35 @@ export const RestaurantOrders = () => {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-lg md:text-xl font-bold">#{order.id.slice(0, 8)}</span>
                             {needsAttention && <AlertTriangle size={14} className="text-red-400" />}
-                            <div className="flex gap-1">
-                                {order.payment?.method === 'paynow' && order.payment?.status === 'paid' && (
-                                    <span className="bg-green-500/20 text-green-400 text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-full font-bold uppercase">PAID ONLINE</span>
-                                )}
-                                {order.payment?.method === 'cod' && (
-                                    <span className="bg-orange-500/20 text-orange-400 text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-full font-bold uppercase">COD</span>
-                                )}
-                            </div>
-                        </div>
-                        <p className={cn("text-xs font-bold uppercase tracking-wider", needsAttention ? "text-red-400" : "text-muted")}>
+                             <div className="flex flex-col gap-2">
+                                 {/* First Row: Status Badges */}
+                                 <div className="flex flex-wrap items-center gap-2">
+                                    {(order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (
+                                        <span className="bg-purple-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-lg shadow-purple-500/20 border border-purple-400/30 animate-pulse">
+                                            PRE-ORDER / PICKUP
+                                        </span>
+                                    )}
+                                    {order.payment?.method === 'paynow' && order.payment?.status === 'paid' && (
+                                        <span className="bg-green-500/20 text-green-400 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">PAID ONLINE</span>
+                                    )}
+                                    {order.payment?.method === 'cod' && (
+                                        <span className="bg-orange-500/20 text-orange-400 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">COD</span>
+                                    )}
+                                 </div>
+
+                                 {/* Second Row: Collection PIN (Unified) */}
+                                 {order.delivery_pin && (order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (
+                                    <div className="bg-purple-600/20 border border-purple-500/30 p-2.5 rounded-xl flex items-center justify-between group-hover:bg-purple-600/30 transition-colors">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest leading-none">Collection PIN</span>
+                                            <span className="text-[9px] text-purple-400/60 font-medium mt-1">Check with Customer</span>
+                                        </div>
+                                        <span className="text-2xl font-black font-mono text-purple-300 tracking-[0.1em]">{order.delivery_pin}</span>
+                                    </div>
+                                 )}
+                             </div>
+                         </div>
+                         <p className={cn("text-xs font-bold uppercase tracking-wider", needsAttention ? "text-red-400" : "text-muted")}>
                             Ordered: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             <span className="ml-2 py-0.5 px-1.5 rounded bg-white/5 text-accent">
                                 {new Date(order.created_at).toDateString() === new Date().toDateString() ? 'TODAY' : new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
@@ -221,8 +240,23 @@ export const RestaurantOrders = () => {
                         </button>
                     )}
                     {order.status === 'ready_for_pickup' && (
-                        <div className="text-center py-2 bg-purple-500/10 rounded-xl border border-purple-500/20">
-                            <p className="text-xs font-bold text-purple-400">Driver dispatch started...</p>
+                        <div className={cn(
+                            "text-center py-3 rounded-xl border flex flex-col gap-1",
+                            order.fulfillment_type === 'pickup' 
+                                ? "bg-purple-500/20 border-purple-500/50 border-2 shadow-[0_0_15px_rgba(168,85,247,0.15)]" 
+                                : "bg-purple-500/10 border-purple-500/20"
+                        )}>
+                            <p className={cn(
+                                "text-[11px] font-black uppercase tracking-wider",
+                                order.fulfillment_type === 'pickup' ? "text-purple-300" : "text-purple-400"
+                            )}>
+                                {order.fulfillment_type === 'pickup' ? "Awaiting Customer Collection" : "Driver dispatch started..."}
+                            </p>
+                            {order.fulfillment_type === 'pickup' && (
+                                <p className="text-[10px] text-purple-400/70 font-bold">
+                                    Customer has been notified to collect
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>

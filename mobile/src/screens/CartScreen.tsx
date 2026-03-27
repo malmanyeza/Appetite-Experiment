@@ -24,7 +24,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from '../components/Map';
 import { GooglePlacesAutocomplete } from '../components/GooglePlacesAutocomplete';
 import { mapDarkStyle, mapLightStyle } from '../theme/MapStyle';
 import * as ExpoLocation from 'expo-location';
-import { ChevronLeft, Trash2, MapPin, Smartphone, CheckCircle2, DollarSign, CreditCard, Search, X, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, Trash2, MapPin, Smartphone, CheckCircle2, DollarSign, CreditCard, Search, X, ChevronRight, Truck, ShoppingBag, Info, Store } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { Image } from 'expo-image';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
@@ -53,6 +53,7 @@ export const CartScreen = ({ navigation }: any) => {
         enabled: !!profile?.id
     });
 
+    const [fulfillmentType, setFulfillmentType] = React.useState<'delivery' | 'pickup'>('delivery');
     const [selectedAddress, setSelectedAddress] = React.useState<any>(selectedLocation);
     const [paymentMethod, setPaymentMethod] = React.useState<'cod' | 'ecocash' | 'card'>('ecocash');
     const [ecocashPhone, setEcocashPhone] = React.useState('');
@@ -182,6 +183,11 @@ export const CartScreen = ({ navigation }: any) => {
 
     // Distance Calculation Logic
     React.useEffect(() => {
+        if (fulfillmentType === 'pickup') {
+            setDeliveryFee(0);
+            return;
+        }
+
         if (selectedAddress && restaurant && deliveryConfig) {
             const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
                 const R = 6371; // km
@@ -210,7 +216,7 @@ export const CartScreen = ({ navigation }: any) => {
             setDeliveryFee(base + (distance * perKm) + surge);
             setServiceFee(srv);
         }
-    }, [selectedAddress, restaurant, deliveryConfig]);
+    }, [selectedAddress, restaurant, deliveryConfig, fulfillmentType]);
 
     React.useEffect(() => {
         if (!selectedAddress && addresses && addresses.length > 0) {
@@ -220,7 +226,7 @@ export const CartScreen = ({ navigation }: any) => {
 
     const handleCheckout = () => {
         if (items.length === 0) return;
-        if (!selectedAddress) {
+        if (fulfillmentType === 'delivery' && !selectedAddress) {
             Alert.alert('Address Required', 'Please add a delivery address before placing an order.', [
                 { text: 'Add Address', onPress: () => navigation.navigate('AddressManagement') }
             ]);
@@ -244,7 +250,7 @@ export const CartScreen = ({ navigation }: any) => {
             const session = (await supabase.auth.getSession()).data.session;
             if (!session) throw new Error('You must be logged in to place an order.');
 
-            const response = await fetch(`${supabaseUrl}/functions/v1/place_order`, {
+            const response = await fetch(`${supabaseUrl}/functions/v1/place_order_v2`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -253,7 +259,7 @@ export const CartScreen = ({ navigation }: any) => {
                 },
                 body: JSON.stringify({
                     items: items.map((item: any) => ({ id: item.id, menu_item_id: item.menu_item_id, qty: item.qty, selected_add_ons: item.selected_add_ons })),
-                    address: {
+                    address: fulfillmentType === 'delivery' ? {
                         label: selectedAddress.label,
                         city: selectedAddress.city,
                         suburb: selectedAddress.suburb,
@@ -261,8 +267,9 @@ export const CartScreen = ({ navigation }: any) => {
                         landmark_notes: selectedAddress.landmark_notes,
                         lat: selectedAddress.lat,
                         lng: selectedAddress.lng
-                    },
+                    } : null,
                     paymentMethod,
+                    fulfillmentType,
                     restaurantId: items[0].restaurant_id,
                     locationId: items[0].location_id,
                     phone: paymentMethod === 'ecocash' ? phoneToUse?.trim() : undefined
@@ -407,7 +414,19 @@ export const CartScreen = ({ navigation }: any) => {
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <ChevronLeft color={theme.text} size={24} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>My Cart</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={[styles.headerTitle, { color: theme.text }]}>My Cart</Text>
+                    <View style={[styles.modeBadge, { backgroundColor: fulfillmentType === 'delivery' ? '#3B82F620' : '#10B98120' }]}>
+                        {fulfillmentType === 'delivery' ? (
+                            <Truck size={12} color="#3B82F6" />
+                        ) : (
+                            <ShoppingBag size={12} color="#10B981" />
+                        )}
+                        <Text style={[styles.modeBadgeText, { color: fulfillmentType === 'delivery' ? '#3B82F6' : '#10B981' }]}>
+                            {fulfillmentType === 'delivery' ? 'DELIVERY' : 'PICKUP'}
+                        </Text>
+                    </View>
+                </View>
                 <View style={{ width: 24 }} />
             </View>
 
@@ -424,6 +443,27 @@ export const CartScreen = ({ navigation }: any) => {
                     </View>
                 ) : (
                     <>
+                        <View style={[styles.tabToggle, { backgroundColor: theme.surface }]}>
+                            <TouchableOpacity 
+                                style={[styles.tabBtn, fulfillmentType === 'delivery' && { backgroundColor: theme.accent }]}
+                                onPress={() => setFulfillmentType('delivery')}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Truck size={16} color={fulfillmentType === 'delivery' ? '#FFF' : theme.textMuted} />
+                                    <Text style={[styles.tabBtnText, fulfillmentType === 'delivery' ? { color: '#FFF' } : { color: theme.textMuted }]}>Delivery</Text>
+                                </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.tabBtn, fulfillmentType === 'pickup' && { backgroundColor: theme.accent }]}
+                                onPress={() => setFulfillmentType('pickup')}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <ShoppingBag size={16} color={fulfillmentType === 'pickup' ? '#FFF' : theme.textMuted} />
+                                    <Text style={[styles.tabBtnText, fulfillmentType === 'pickup' ? { color: '#FFF' } : { color: theme.textMuted }]}>Pickup</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
                         <View style={styles.itemsSection}>
                             {items.map((item) => (
                                 <View key={item.id} style={[styles.cartItem, { borderBottomColor: theme.border }]}>
@@ -452,24 +492,53 @@ export const CartScreen = ({ navigation }: any) => {
                             ))}
                         </View>
 
-                        <View style={[styles.section, { borderTopColor: theme.border }]}>
-                            <Text style={[styles.sectionTitle, { color: theme.text }]}>Delivery Address</Text>
-                            <View style={[styles.infoCard, { backgroundColor: theme.surface }]}>
-                                <MapPin size={20} color={theme.accent} />
-                                <View style={{ flex: 1 }}>
-                                    {selectedAddress ? (
-                                        <Text style={[styles.infoCardText, { color: theme.text }]}>
-                                            {selectedAddress.street}, {selectedAddress.suburb}
-                                        </Text>
-                                    ) : (
-                                        <Text style={[styles.infoCardText, { color: '#EF4444' }]}>No address selected</Text>
-                                    )}
+                        {fulfillmentType === 'delivery' ? (
+                            <View style={[styles.section, { borderTopColor: theme.border }]}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                    <Truck size={20} color={theme.accent} />
+                                    <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Delivery Address</Text>
                                 </View>
-                                <TouchableOpacity onPress={() => setAddressModalVisible(true)}>
-                                    <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{selectedAddress ? 'Change' : 'Add'}</Text>
-                                </TouchableOpacity>
+                                <View style={[styles.infoCard, { backgroundColor: theme.surface }]}>
+                                    <MapPin size={20} color={theme.accent} />
+                                    <View style={{ flex: 1 }}>
+                                        {selectedAddress ? (
+                                            <Text style={[styles.infoCardText, { color: theme.text }]}>
+                                                {selectedAddress.street}, {selectedAddress.suburb}
+                                            </Text>
+                                        ) : (
+                                            <Text style={[styles.infoCardText, { color: '#EF4444' }]}>No address selected</Text>
+                                        )}
+                                    </View>
+                                    <TouchableOpacity onPress={() => setAddressModalVisible(true)}>
+                                        <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{selectedAddress ? 'Change' : 'Add'}</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                        </View>
+                        ) : (
+                            <View style={[styles.fulfillmentSectionHighlight, { backgroundColor: '#10B98108', borderTopColor: theme.border }]}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                                    <Store size={20} color="#10B981" />
+                                    <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Pickup Point</Text>
+                                </View>
+                                <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: '#10B98120', borderWidth: 1 }]}>
+                                    <MapPin size={20} color="#10B981" />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.infoCardText, { color: theme.text, fontWeight: '600' }]}>
+                                            Collect from Main Counter
+                                        </Text>
+                                        <Text style={{ fontSize: 11, color: theme.textMuted }}>
+                                            Select branch in your cart before checkout.
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={styles.pickupTip}>
+                                    <Info size={12} color="#10B981" />
+                                    <Text style={{ fontSize: 11, color: '#10B981', marginLeft: 4 }}>
+                                        Drive-thru: Tell the staff your Order Number upon arrival.
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
 
                         <View style={[styles.section, { borderTopColor: theme.border }]}>
                             <Text style={[styles.sectionTitle, { color: theme.text }]}>Payment Method</Text>
@@ -521,12 +590,19 @@ export const CartScreen = ({ navigation }: any) => {
             {items.length > 0 && (
                 <View style={styles.footer}>
                     <TouchableOpacity
-                        style={[styles.primaryButton, { backgroundColor: theme.accent }]}
+                        style={[styles.primaryButton, { backgroundColor: theme.accent, opacity: loading ? 0.7 : 1 }]}
                         onPress={handleCheckout}
+                        disabled={loading}
                     >
-                        <Text style={styles.buttonText}>
-                            {paymentMethod === 'ecocash' ? 'Pay with EcoCash' : paymentMethod === 'card' ? 'Pay with Card' : 'Place Order'}
-                        </Text>
+                        {loading && paymentMethod === 'cod' ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.buttonText}>
+                                {paymentMethod === 'ecocash' ? 'Pay with EcoCash' : 
+                                 paymentMethod === 'card' ? 'Pay with Card' : 
+                                 (fulfillmentType === 'delivery' ? 'Confirm Delivery & Pay' : 'Confirm Pickup & Pay')}
+                            </Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             )}
@@ -824,7 +900,9 @@ export const CartScreen = ({ navigation }: any) => {
             <Modal transparent visible={loading} animationType="fade">
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }]}>
                     <ActivityIndicator size="large" color={theme.accent} />
-                    <Text style={{ marginTop: 16, color: '#FFF', fontSize: 18, fontWeight: 'bold' }}>Processing Payment...</Text>
+                    <Text style={{ marginTop: 16, color: '#FFF', fontSize: 18, fontWeight: 'bold' }}>
+                        {paymentMethod === 'cod' ? 'Processing Order...' : 'Processing Payment...'}
+                    </Text>
                 </View>
             </Modal>
         </KeyboardAvoidingView>
@@ -957,14 +1035,55 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     confirmAddressBtn: {
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 16,
         alignItems: 'center',
-        marginTop: 10,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5
+        marginTop: 20
+    },
+    tabToggle: {
+        flexDirection: 'row',
+        padding: 4,
+        borderRadius: 12,
+        marginBottom: 20
+    },
+    tabBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 10,
+        alignItems: 'center'
+    },
+    tabBtnText: {
+        fontSize: 14,
+        fontWeight: 'bold'
+    },
+    modeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 8,
+        marginTop: 4,
+        gap: 4
+    },
+    modeBadgeText: {
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 1
+    },
+    fulfillmentSectionHighlight: {
+        marginTop: 24,
+        paddingTop: 24,
+        paddingBottom: 16,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        borderTopWidth: 1,
+    },
+    pickupTip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 12,
+        backgroundColor: '#10B98110',
+        padding: 8,
+        borderRadius: 8
     }
 });

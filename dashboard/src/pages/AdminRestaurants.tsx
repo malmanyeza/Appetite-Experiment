@@ -58,8 +58,8 @@ export const AdminRestaurants = () => {
                             <tr>
                                 <th className="px-6 py-5">Restaurant</th>
                                 <th className="px-6 py-5">Status</th>
-                                <th className="px-6 py-5">Location</th>
-                                <th className="px-6 py-5">Rating</th>
+                                <th className="px-6 py-5 text-center">Branches</th>
+                                <th className="px-6 py-5">Menu</th>
                                 <th className="px-6 py-5">Total Orders</th>
                                 <th className="px-6 py-5 text-right">Actions</th>
                             </tr>
@@ -95,14 +95,20 @@ export const AdminRestaurants = () => {
                                             {rest.is_open ? 'Open' : 'Closed'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-muted flex items-center gap-2">
-                                        <MapPin size={14} /> {rest.suburb || 'Unknown'}, {rest.city}
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/5 font-bold text-white text-xs">
+                                            {rest.locations?.[0]?.count || 0}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1 font-bold">
-                                            <Star className="w-4 h-4 text-orange-400 fill-orange-400" />
-                                            {rest.rating_avg || 'New'}
-                                        </div>
+                                        <span className={cn(
+                                            "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                            (rest.menu?.[0]?.count || 0) > 0 
+                                                ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" 
+                                                : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                        )}>
+                                            {(rest.menu?.[0]?.count || 0) > 0 ? `${rest.menu[0].count} Items` : 'No Menu'}
+                                        </span>
                                     </td>
                                     <td className="px-6 py-4 font-medium text-white">
                                         {(rest.orders?.[0]?.count || 0).toLocaleString()}

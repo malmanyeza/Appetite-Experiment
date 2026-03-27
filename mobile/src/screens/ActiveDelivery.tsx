@@ -14,7 +14,8 @@ import {
     Platform, 
     Animated, 
     Dimensions,
-    ActivityIndicator
+    ActivityIndicator,
+    PanResponder
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -90,12 +91,32 @@ export const ActiveDelivery = () => {
     const modalY = React.useRef(new Animated.Value(0)).current;
     
     const animateModal = (toValue: number) => {
-        Animated.timing(modalY, {
+        Animated.spring(modalY, {
             toValue,
-            duration: 600,
             useNativeDriver: true,
+            bounciness: 0,
         }).start();
     };
+
+    const panResponder = React.useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 5,
+            onPanResponderMove: (_, gestureState) => {
+                const newValue = gestureState.dy;
+                if (newValue >= 0) {
+                    modalY.setValue(newValue);
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+                    animateModal(Dimensions.get('window').height * 0.45);
+                } else {
+                    animateModal(0);
+                }
+            },
+        })
+    ).current;
 
     // Track user location
     useEffect(() => {
@@ -289,8 +310,11 @@ export const ActiveDelivery = () => {
                 provider={PROVIDER_GOOGLE}
                 style={StyleSheet.absoluteFillObject}
                 customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
-                onRegionChangeStart={() => animateModal(Dimensions.get('window').height * 0.4)}
-                onRegionChangeComplete={() => animateModal(0)}
+                onRegionChangeStart={() => {
+                    // Auto-collapse slightly when moving map to give more view
+                    // but allow manual pull-down to be the primary way
+                }}
+                onRegionChangeComplete={() => {}}
             >
                 {/* Route Polyline */}
                 {routeCoords.length > 1 && (
@@ -391,7 +415,7 @@ export const ActiveDelivery = () => {
                     }
                 ]}
             >
-                <View style={styles.sheetHandle}>
+                <View style={styles.sheetHandle} {...panResponder.panHandlers}>
                     <View style={[styles.handle, { backgroundColor: theme.border }]} />
                 </View>
 

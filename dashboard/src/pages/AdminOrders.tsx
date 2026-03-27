@@ -145,6 +145,9 @@ export const AdminOrders = () => {
                                                 <span className="text-[10px] uppercase font-bold text-accent/80">
                                                     {new Date(order.created_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                                 </span>
+                                                 {order.fulfillment_type && String(order.fulfillment_type).toLowerCase().trim() === 'pickup' && (
+                                                    <span className="mt-1 bg-purple-600 text-[9px] text-white px-1.5 py-0.5 rounded font-black uppercase w-fit animate-pulse">PRE-ORDER</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -193,10 +196,28 @@ export const AdminOrders = () => {
 
                     {/* Drawer Panel */}
                     <div className="fixed inset-y-0 right-0 w-full max-w-md bg-[#121212] border-l border-white/10 shadow-2xl z-50 transform transition-transform animate-in slide-in-from-right duration-300 flex flex-col">
-                        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-                            <div>
-                                <h2 className="text-xl font-black font-mono">#{selectedOrder.id.slice(0, 8).toUpperCase()}</h2>
-                                <div className="flex gap-6 mt-1">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-start bg-white/5">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-xl font-black font-mono">#{selectedOrder.id.slice(0, 8).toUpperCase()}</h2>
+                                    {(selectedOrder.fulfillment_type === 'pickup' || String(selectedOrder.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (
+                                        <span className="bg-purple-600 text-white text-[10px] px-2 py-1 rounded-lg font-black uppercase shadow-lg shadow-purple-500/20 border border-purple-400/30">
+                                            PRE-ORDER / PICKUP
+                                        </span>
+                                    )}
+                                </div>
+
+                                {selectedOrder.delivery_pin && (selectedOrder.fulfillment_type === 'pickup' || String(selectedOrder.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (
+                                    <div className="mt-4 bg-purple-600/20 border border-purple-500/30 p-3.5 rounded-2xl flex items-center justify-between border-l-4 border-l-purple-500">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest leading-none">Collection PIN</span>
+                                            <span className="text-[9px] text-purple-400/70 font-bold mt-1.5 uppercase">Verify with Customer</span>
+                                        </div>
+                                        <span className="text-3xl font-black font-mono text-purple-300 tracking-[0.2em] ml-4">{selectedOrder.delivery_pin}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-6 mt-4">
                                     <div className="flex flex-col">
                                         <span className="text-[10px] text-muted uppercase tracking-widest font-bold">Ordered:</span>
                                         <span className="text-xs text-white">
@@ -221,7 +242,7 @@ export const AdminOrders = () => {
                             </div>
                             <button
                                 onClick={() => setSelectedOrder(null)}
-                                className="w-10 h-10 rounded-full glass flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors"
+                                className="w-10 h-10 rounded-full glass flex items-center justify-center text-muted hover:text-white hover:bg-white/10 transition-colors ml-4"
                             >
                                 <X size={20} />
                             </button>

@@ -83,10 +83,10 @@ export const restaurantService = {
     },
 
     async getAllRestaurants() {
-        // Fetch all restaurants with their total order count
+        // Fetch all restaurants with their total order count, branch count, and menu item count
         const { data, error } = await supabase
             .from('restaurants')
-            .select('*, orders:orders(count)')
+            .select('*, locations:restaurant_locations(count), menu:menu_items(count), orders:orders(count)')
             .order('name');
         if (error) throw error;
         return data;
@@ -217,6 +217,15 @@ export const restaurantService = {
             .from('location_menu_items')
             .select('menu_item_id, is_available')
             .eq('location_id', locationId);
+        if (error) throw error;
+        return data;
+    },
+
+    async getItemBranchAvailability(menuItemId: string) {
+        const { data, error } = await supabase
+            .from('location_menu_items')
+            .select('location_id, is_available')
+            .eq('menu_item_id', menuItemId);
         if (error) throw error;
         return data;
     },

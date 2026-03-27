@@ -11,7 +11,8 @@ import {
     EyeOff,
     Image as ImageIcon,
     Utensils,
-    X
+    X,
+    ChevronLeft
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -23,6 +24,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export const RestaurantMenu = () => {
+    const navigate = useNavigate();
     const { id: paramId } = useParams();
     const queryClient = useQueryClient();
     const [isEditing, setIsEditing] = useState<any>(null); // null, 'new', or item object
@@ -30,6 +32,7 @@ export const RestaurantMenu = () => {
     const [editImageUrl, setEditImageUrl] = useState<string>('');
     const [addons, setAddons] = useState<{ name: string; price: number }[]>([]);
     const [branchAvailabilityItem, setBranchAvailabilityItem] = useState<any>(null); // item object if modal open
+    const [branchSearch, setBranchSearch] = useState('');
 
     const { user, profile } = useAuthStore();
     const { data: menuItems, isLoading } = useQuery({
@@ -58,7 +61,7 @@ export const RestaurantMenu = () => {
 
     const { data: branchMapping, refetch: refetchBranchMapping } = useQuery({
         queryKey: ['branch-availability', branchAvailabilityItem?.id],
-        queryFn: () => restaurantService.getLocationAvailability(branchAvailabilityItem.id),
+        queryFn: () => restaurantService.getItemBranchAvailability(branchAvailabilityItem.id),
         enabled: !!branchAvailabilityItem?.id
     });
 
@@ -120,9 +123,19 @@ export const RestaurantMenu = () => {
     return (
         <div className="space-y-8 pb-20">
             <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold">Menu Management</h1>
-                    <p className="text-muted">Add, edit, or remove items from your store</p>
+                <div className="flex items-center gap-4">
+                    {paramId && (
+                        <button
+                            onClick={() => navigate('/admin/restaurants')}
+                            className="p-2 hover:bg-white/5 rounded-xl text-muted hover:text-white transition-colors border border-white/5"
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                    )}
+                    <div>
+                        <h1 className="text-2xl font-bold">Menu Management</h1>
+                        <p className="text-muted text-sm">Add, edit, or remove items from {paramId ? 'this store' : 'your store'}</p>
+                    </div>
                 </div>
                 <button
                     className="btn-primary flex items-center gap-2 px-6"
@@ -377,11 +390,25 @@ export const RestaurantMenu = () => {
                             </button>
                         </div>
 
-                        <div className="space-y-3">
-                            {locations?.map((loc: any) => {
+                        <div className="relative">
+                            <Plus size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted rotate-0" />
+                            <input
+                                type="text"
+                                placeholder="Search branches..."
+                                value={branchSearch}
+                                onChange={(e) => setBranchSearch(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                            />
+                        </div>
+
+                        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                            {locations?.filter((l: any) => 
+                                l.location_name.toLowerCase().includes(branchSearch.toLowerCase()) ||
+                                l.suburb.toLowerCase().includes(branchSearch.toLowerCase())
+                            ).map((loc: any) => {
                                 const isLocAvailable = (branchMapping as any[])?.find(m => m.location_id === loc.id)?.is_available ?? true;
                                 return (
-                                    <div key={loc.id} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <div key={loc.id} className="flex justify-between items-center p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
                                         <div>
                                             <p className="font-bold text-sm text-white">{loc.location_name}</p>
                                             <p className="text-xs text-muted">{loc.suburb}, {loc.city}</p>
@@ -393,15 +420,20 @@ export const RestaurantMenu = () => {
                                                 isAvailable: !isLocAvailable
                                             })}
                                             className={cn(
-                                                "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
-                                                isLocAvailable ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                                                "px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all uppercase tracking-wider",
+                                                isLocAvailable 
+                                                    ? "bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20" 
+                                                    : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
                                             )}
                                         >
-                                            {isLocAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}
+                                            {isLocAvailable ? 'Available' : 'Unavailable'}
                                         </button>
                                     </div>
                                 );
                             })}
+                            {locations?.length === 0 && (
+                                <p className="text-center text-muted text-sm py-10 italic">No branches found for this restaurant.</p>
+                            )}
                         </div>
 
                         <button

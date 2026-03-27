@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, View, useColorScheme, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './src/store/authStore';
@@ -9,6 +9,8 @@ import { StatusBar } from 'expo-status-bar';
 import { supabase } from './src/lib/supabase';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { AnimatedSplash } from './src/components/AnimatedSplash';
+import { useNetwork } from './src/hooks/useNetwork';
+import { WifiOff } from 'lucide-react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -19,7 +21,19 @@ Sentry.init({
   debug: __DEV__,
 });
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            retry: 2,
+            staleTime: 1000 * 60 * 5, // 5 minutes (allow offline viewing of recent data)
+            gcTime: 1000 * 60 * 60 * 24, // 24 hours
+            networkMode: 'offlineFirst',
+        },
+        mutations: {
+            networkMode: 'offlineFirst',
+        }
+    }
+});
 
 // Global error handler for uncaught JS errors
 if (typeof ErrorUtils !== 'undefined') {
@@ -31,11 +45,31 @@ if (typeof ErrorUtils !== 'undefined') {
     });
 }
 
-const FallbackComponent = () => (
+const FallbackComponent = ({ error }: any) => (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <ActivityIndicator size="large" color="#FF4D00" />
     </View>
 );
+
+const ConnectionBanner = ({ isOnline, theme }: { isOnline: boolean, theme: any }) => {
+    if (isOnline) return null;
+    return (
+        <View style={{ 
+            backgroundColor: '#EF4444', 
+            paddingTop: 50, 
+            paddingBottom: 8, 
+            paddingHorizontal: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            zIndex: 9999
+        }}>
+            <WifiOff size={14} color="white" />
+            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Offline: Some features may be limited</Text>
+        </View>
+    );
+};
 
 function App() {
     console.log('--- APP STARTING ---');
@@ -61,6 +95,7 @@ function App() {
 
     const colorScheme = useColorScheme();
     const { loading, user, refreshSession } = useAuthStore();
+    const { isOnline } = useNetwork();
 
     const isDark = colorScheme === 'dark';
     const theme = isDark ? Colors.dark : Colors.light;
@@ -69,9 +104,17 @@ function App() {
         // Initial session check
         refreshSession();
 
+        // Fail-safe: Always dismiss splash after 10 seconds to prevent getting stuck
+        const failSafeTimeout = setTimeout(() => {
+            if (showSplash) {
+                console.warn('[App] Fail-safe triggered: Dismissing splash screen after timeout');
+                setShowSplash(false);
+            }
+        }, 10000);
+
         // Listen for auth state changes safely
         const authData = supabase?.auth?.onAuthStateChange((event: string, session: any) => {
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
                 refreshSession(session);
             } else if (event === 'SIGNED_OUT') {
                 refreshSession(null);
@@ -82,6 +125,7 @@ function App() {
 
         return () => {
             if (subscription) subscription.unsubscribe();
+            clearTimeout(failSafeTimeout);
         };
     }, []);
 
@@ -95,6 +139,7 @@ function App() {
                     <ThemeContext.Provider value={{ theme, isDark }}>
                         <NavigationContainer>
                             <StatusBar style={isDark ? 'light' : 'dark'} />
+                            <ConnectionBanner isOnline={isOnline} theme={theme} />
                             <RootNavigator />
                         </NavigationContainer>
                         {showSplash && (

@@ -319,9 +319,12 @@ export const Overview = () => {
                                                 <span className="text-white font-medium">
                                                     {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
-                                                <span className="text-[10px] uppercase font-bold text-accent/80">
+                                                 <span className="text-[10px] uppercase font-bold text-accent/80">
                                                     {new Date(order.created_at).toDateString() === new Date().toDateString() ? 'Today' : new Date(order.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                                 </span>
+                                                 {order.fulfillment_type && String(order.fulfillment_type).toLowerCase().trim() === 'pickup' && (
+                                                    <span className="mt-1 bg-purple-600 text-[9px] text-white px-1.5 py-0.5 rounded font-black uppercase w-fit animate-pulse">PRE-ORDER</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="py-4 text-sm text-muted">

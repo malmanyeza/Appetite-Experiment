@@ -3,28 +3,26 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-/** Strip script, style, and other noise tags from raw HTML so the AI sees clean content */
 function cleanHtml(html: string): string {
     return html
         .replace(/<script[\s\S]*?<\/script>/gi, '')
         .replace(/<style[\s\S]*?<\/style>/gi, '')
         .replace(/<svg[\s\S]*?<\/svg>/gi, '')
         .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-        .replace(/<!--[\s\S]*?-->/g, '')    // strip HTML comments
-        .replace(/<[^>]+>/g, ' ')            // strip remaining HTML tags  
-        .replace(/\s{2,}/g, ' ')             // collapse whitespace
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s{2,}/g, ' ')
         .trim();
 }
 
-/** Normalize lazy-loaded image attributes so AI can find them in raw HTML */
 function normalizeLazyImages(html: string): string {
     return html
         .replace(/data-src="/gi, 'src="')
         .replace(/data-lazy-src="/gi, 'src="')
-        .replace(/data-original="/gi, 'src="')
-        .replace(/data-srcset="/gi, 'srcset="');
+        .replace(/data-original="/gi, 'src="');
 }
 
 serve(async (req) => {
@@ -33,45 +31,37 @@ serve(async (req) => {
     }
 
     try {
-        const { imageBase64, mimeType, url } = await req.json();
+        const body = await req.json();
+        const { imageBase64, mimeType, url } = body;
 
         if (!imageBase64 && !url) {
-            return new Response(JSON.stringify({ error: 'Missing either image Base64 data or a website URL' }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            return new Response(JSON.stringify({ error: 'Provide imageBase64 or url' }), {
+                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
         const apiKey = Deno.env.get('OPENAI_API_KEY')?.trim();
         if (!apiKey) {
-            return new Response(JSON.stringify({ error: 'Missing OPENAI_API_KEY in Edge Function secrets.' }), {
-                status: 500,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            return new Response(JSON.stringify({ error: 'Missing OPENAI_API_KEY secret' }), {
+                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
-        const systemPrompt = `You are an expert AI data parser for a food delivery platform. Your job is to extract EVERY single food or drink item from the provided menu data. Be exhaustive — do not miss items.
+        const systemPrompt = `You are an expert AI data parser for a food delivery platform. Extract EVERY food or drink item from the menu data provided. Be exhaustive.
 
-Return your response EXCLUSIVELY as a raw, valid JSON array of objects. No markdown, no explanation, just the raw array.
+Return ONLY a raw valid JSON array of objects — no markdown, no explanation.
 
-Each object MUST have this exact structure:
+Each object structure:
 {
-    "name": "String - the food item name",
-    "description": "String - ingredients or details (empty string if none)",
-    "price": Number - the price as a float (e.g. 12.99). Use 0 if price is not listed,
-    "category": "String - the section header this item falls under (e.g. Burgers, Drinks, Sides)",
-    "image_url": "String - the full absolute URL of the item's image if found in the content, otherwise empty string",
-    "add_ons": [
-        { "name": "String", "price": Number }
-    ]
+  "name": "String",
+  "description": "String (empty if none)",
+  "price": Number (float, 0 if unknown),
+  "category": "String (section header)",
+  "image_url": "String (absolute URL from src= attributes, or empty string)",
+  "add_ons": [{ "name": "String", "price": Number }]
 }
 
-Rules:
-- Extract EVERY menu item you can find. Be thorough and systematic.
-- Convert all prices to numeric floats, strip currency symbols.
-- For image_url: look for <img> src attributes, og:image, or any thumbnail URL clearly associated with that specific menu item. Use the full absolute URL. If none found specifically for that item, use empty string "".
-- For add_ons: capture toppings, extras, size options. If item has sizes (Small/Large), list them as add_ons.
-- Do NOT include non-food items like gift cards, merchandise, etc.`;
+Rules: Extract every item. Strip currency from prices. For image_url look for img src= attributes near the item. Leave as "" if not found.`;
 
         let messages: any[];
 
@@ -79,77 +69,58 @@ Rules:
             let finalUrl = url.trim();
             if (!finalUrl.startsWith('http')) finalUrl = 'https://' + finalUrl;
 
-            console.log(`Fetching HTML from: ${finalUrl}`);
+            let fetchedHtml = '';
             try {
                 const websiteRes = await fetch(finalUrl, {
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Accept': 'text/html,application/xhtml+xml',
                     }
                 });
-                const rawHtml = await websiteRes.text();
-                // Normalize lazy-loaded images so AI can find their URLs
-                const normalizedHtml = normalizeLazyImages(rawHtml);
-                const rawSnippet = normalizedHtml.substring(0, 300000);
-                const cleanedText = cleanHtml(normalizedHtml).substring(0, 150000);
-
-                messages = [
-                    { role: 'system', content: systemPrompt },
-                    {
-                        role: 'user',
-                        content: `Please extract ALL menu items from this restaurant website.\n\n--- RAW HTML (for finding image URLs) ---\n${rawSnippet}\n\n--- CLEANED TEXT (for reading menu items) ---\n${cleanedText}`
-                    }
-                ];
+                fetchedHtml = await websiteRes.text();
             } catch (err: any) {
-                return new Response(JSON.stringify({ error: 'Failed to access the website: ' + err.message }), {
-                    status: 200,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                return new Response(JSON.stringify({ error: 'Failed to fetch URL: ' + err.message }), {
+                    status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 });
             }
+
+            // Memory optimization: slice the HTML FIRST before memory-heavy regex work
+            const htmlChunk = fetchedHtml.substring(0, 100000);
+            const normalized = normalizeLazyImages(htmlChunk);
+            const rawSnippet = normalized.substring(0, 40000);
+            const cleanedText = cleanHtml(normalized).substring(0, 40000);
+
+            messages = [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: `Website: ${finalUrl}\n\n[RAW HTML for images]\n${rawSnippet}\n\n[CLEAN TEXT for menu items]\n${cleanedText}` }
+            ];
         } else {
             const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-            const imageMediaType = mimeType || 'image/jpeg';
-
             messages = [
                 { role: 'system', content: systemPrompt },
                 {
                     role: 'user',
                     content: [
-                        { type: 'text', text: 'Please extract ALL menu items from this menu image. For image_url, use empty string since this is an uploaded photo.' },
-                        {
-                            type: 'image_url',
-                            image_url: {
-                                url: `data:${imageMediaType};base64,${base64Data}`,
-                                detail: 'high'
-                            }
-                        }
+                        { type: 'text', text: 'Extract all menu items from this image. Use empty string for image_url.' },
+                        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${base64Data}`, detail: 'high' } }
                     ]
                 }
             ];
         }
 
-        const requestBody = {
-            model: 'gpt-4o-mini',
-            messages,
-            temperature: 0.1,
-            max_tokens: 8192,  // Doubled from 4096 to capture large menus
-        };
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify(requestBody)
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: 'gpt-4o-mini', messages, temperature: 0.1, max_tokens: 4096 })
         });
 
-        const data = await response.json();
-
-        if (data.error) {
-            throw new Error(`OpenAI API Error: ${data.error.message}`);
+        if (!openaiRes.ok) {
+            const errText = await openaiRes.text();
+            throw new Error(`OpenAI Error (${openaiRes.status}): ${errText}`);
         }
+
+        const data = await openaiRes.json();
+        if (data.error) throw new Error(`OpenAI: ${data.error.message}`);
 
         const rawText = data.choices?.[0]?.message?.content || '[]';
         const cleanedJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -159,11 +130,10 @@ Rules:
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (error: any) {
-        console.error('Error scanning menu:', error);
-        return new Response(JSON.stringify({ error: String(error.message || error) }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    } catch (err: any) {
+        console.error('scan-menu-ai error:', err);
+        return new Response(JSON.stringify({ error: String(err?.message || err) }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 });

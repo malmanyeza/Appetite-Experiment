@@ -52,8 +52,8 @@ export const DriverOnboarding = ({ navigation }: any) => {
     const { theme } = useTheme();
     const { user, profile } = useAuthStore();
     const [step, setStep] = useState(0); // 0: Gate, 1: Basic, 2: Vehicle, 3: Docs, 4: Payout
-
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Form State
     const [phone, setPhone] = useState(profile?.phone || '');
@@ -90,6 +90,7 @@ export const DriverOnboarding = ({ navigation }: any) => {
         }
 
         setLoading(true);
+        setError(null);
         try {
             if (phone && phone !== profile?.phone) {
                 await supabase.from('profiles').update({ phone }).eq('id', user?.id);
@@ -143,13 +144,9 @@ export const DriverOnboarding = ({ navigation }: any) => {
 
             if (error) throw error;
 
-            Alert.alert(
-                'Application Submitted',
-                'Your driver application is now pending review. We will notify you once approved!',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
-            );
+            setStep(5); // Success step
         } catch (error: any) {
-            Alert.alert('Submission Failed', error.message);
+            setError(error.message);
         } finally {
             setLoading(false);
         }
@@ -362,61 +359,54 @@ export const DriverOnboarding = ({ navigation }: any) => {
         </ScrollView>
     );
 
-    const renderPayout = () => (
-        <ScrollView style={styles.formContent} showsVerticalScrollIndicator={false}>
-            {renderHeader('Payout Details', 'Step 4 of 4: How you get paid')}
-
-            <View style={[styles.infoBanner, { backgroundColor: `${theme.accent}15` }]}>
-                <Text style={[styles.infoText, { color: theme.text }]}>
-                    Earnings are disbursed securely to your EcoCash account. Make sure the details are precise.
-                </Text>
+    const renderSuccess = () => (
+        <View style={styles.fullCenter}>
+            <View style={[styles.iconCircle, { backgroundColor: '#10B98115' }]}>
+                <CheckCircle2 size={48} color="#10B981" />
             </View>
-
-            <Text style={[styles.label, { color: theme.text, marginTop: 24 }]}>EcoCash Number</Text>
-            <View style={[styles.inputGroup, { backgroundColor: theme.surface }]}>
-                <CreditCard size={20} color={theme.textMuted} />
-                <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="07XX XXX XXX"
-                    placeholderTextColor={theme.textMuted}
-                    value={ecocashNumber}
-                    onChangeText={setEcocashNumber}
-                    keyboardType="phone-pad"
-                />
-            </View>
-
-            <Text style={[styles.label, { color: theme.text, marginTop: 24 }]}>EcoCash Registered Name</Text>
-            <View style={[styles.inputGroup, { backgroundColor: theme.surface }]}>
-                <User size={20} color={theme.textMuted} />
-                <TextInput
-                    style={[styles.input, { color: theme.text }]}
-                    placeholder="Full Name on Account"
-                    placeholderTextColor={theme.textMuted}
-                    value={accountName}
-                    onChangeText={setAccountName}
-                />
-            </View>
-
-            <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: theme.accent, marginTop: 40 }]}
-                onPress={handleSubmit}
-                disabled={loading}
-            >
-                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Submit Application</Text>}
+            <Text style={[styles.gateTitle, { color: theme.text }]}>Application Submitted!</Text>
+            <Text style={[styles.gateSub, { color: theme.textMuted }]}>
+                Your driver application is now under review. We will notify you via email and app notification once your account is approved.
+            </Text>
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.accent }]} onPress={() => navigation.navigate('Account')}>
+                <Text style={styles.buttonText}>Back to Profile</Text>
             </TouchableOpacity>
-        </ScrollView>
+        </View>
+    );
+
+    const renderError = () => (
+        <View style={styles.fullCenter}>
+            <View style={[styles.iconCircle, { backgroundColor: '#EF444415' }]}>
+                <FileText size={48} color="#EF4444" />
+            </View>
+            <Text style={[styles.gateTitle, { color: theme.text }]}>Submission Failed</Text>
+            <Text style={[styles.gateSub, { color: theme.textMuted }]}>
+                {error || 'Something went wrong while uploading your application. Please check your connection and try again.'}
+            </Text>
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.accent }]} onPress={handleSubmit}>
+                <Text style={styles.buttonText}>Retry Submission</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setError(null)}>
+                <Text style={[styles.secondaryText, { color: theme.textMuted }]}>Edit Details</Text>
+            </TouchableOpacity>
+        </View>
     );
 
     return (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.container, { backgroundColor: theme.background }]}>
-            {step === 0 && renderGate()}
-            {step === 1 && renderBasicInfo()}
-            {step === 2 && renderVehicle()}
-            {step === 3 && renderDocuments()}
-            {step === 4 && renderPayout()}
+            {error ? renderError() : (
+                <>
+                    {step === 0 && renderGate()}
+                    {step === 1 && renderBasicInfo()}
+                    {step === 2 && renderVehicle()}
+                    {step === 3 && renderDocuments()}
+                    {step === 4 && renderPayout()}
+                    {step === 5 && renderSuccess()}
+                </>
+            )}
         </KeyboardAvoidingView>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: { flex: 1 },

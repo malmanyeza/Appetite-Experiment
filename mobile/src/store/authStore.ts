@@ -21,6 +21,32 @@ const getStoredRole = async () => {
     return null;
 };
 
+const getCachedAuthData = async () => {
+    if (Platform.OS === 'web') return null;
+    try {
+        const data = await SecureStore.getItemAsync('cached_auth_data');
+        return data ? JSON.parse(data) : null;
+    } catch {
+        return null;
+    }
+};
+
+const setCachedAuthData = async (data: any) => {
+    if (Platform.OS === 'web') return;
+    try {
+        await SecureStore.setItemAsync('cached_auth_data', JSON.stringify(data));
+    } catch (e) {
+        console.warn('Failed to cache auth data:', e);
+    }
+};
+
+const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMessage)), ms))
+    ]);
+};
+
 interface AuthState {
     user: any | null;
     profile: any | null;
@@ -51,20 +77,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         
         try {
             set({ isRefreshing: true });
-            if (!get().user) set({ loading: true });
+            
+            // 1. Try to load cached data immediately to speed up splash screen exit
+            if (!get().user) {
+                const cached = await getCachedAuthData();
+                if (cached) {
+                    console.log('[Auth] Restoring cached session data');
+                    set({ 
+                        user: cached.user, 
+                        profile: cached.profile, 
+                        roles: cached.roles, 
+                        activeRole: cached.activeRole,
+                        loading: false 
+                    });
+                } else {
+                    set({ loading: true });
+                }
+            }
 
             if (!supabase) {
                 set({ user: null, profile: null, roles: [], activeRole: null, loading: false, isRefreshing: false });
                 return;
             }
 
+            // 2. Wrap network calls in a timeout to prevent hanging on splash screen
+            const TIMEOUT_MS = 6000;
+
             let session = providedSession;
             if (!session) {
-                const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+                const { data: { session: currentSession }, error: sessionError } = await withTimeout(
+                    supabase.auth.getSession(),
+                    TIMEOUT_MS,
+                    'Session check timed out'
+                );
                 if (sessionError) {
-                    // Check for invalid refresh token and handle silently
                     if (sessionError.message?.includes('Refresh Token Not Found') || sessionError.message?.includes('Invalid Refresh Token')) {
-                        console.log('[Auth] Invalid session detected, clearing auth state silently.');
                         await supabase.auth.signOut().catch(() => {});
                         set({ user: null, profile: null, roles: [], activeRole: null, loading: false, isRefreshing: false });
                         return;
@@ -79,75 +126,72 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return;
             }
 
-            // Use getUser() to ensure token is valid server-side, preventing DB-wiped zombie sessions
-            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            // 3. getUser() verifies the session with the server
+            const { data: { user }, error: authError } = await withTimeout(
+                supabase.auth.getUser(),
+                TIMEOUT_MS,
+                'User verification timed out'
+            );
 
             if (authError || !user) {
-                // The local session is orphaned/invalidated server-side.
                 await supabase.auth.signOut().catch(() => { });
                 set({ user: null, profile: null, roles: [], activeRole: null, loading: false });
                 return;
             }
 
-            // Fetch profile
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+            // 4. Fetch profile and roles (parallel for speed)
+            const [profileRes, rolesRes] = await Promise.all([
+                withTimeout(supabase.from('profiles').select('*').eq('id', user.id).single(), TIMEOUT_MS, 'Profile fetch timed out'),
+                withTimeout(supabase.from('user_roles').select('role').eq('user_id', user.id), TIMEOUT_MS, 'Roles fetch timed out')
+            ]);
 
-            // If profile is strictly missing (PGRST116) or deleted from database, kill the auth session.
-            if ((profileError && profileError.code === 'PGRST116') || !profile) {
+            const profile = profileRes.data;
+            const roles = rolesRes.data;
+
+            if ((profileRes.error && profileRes.error.code === 'PGRST116') || !profile) {
                 await supabase.auth.signOut().catch(() => { });
                 set({ user: null, profile: null, roles: [], activeRole: null, loading: false });
                 return;
-            } else if (profileError) {
-                console.error('Error fetching profile:', profileError);
-            }
-
-            // Fetch roles
-            const { data: roles, error: rolesError } = await supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', user.id);
-
-            if (rolesError) {
-                console.error('Error fetching roles:', rolesError);
             }
 
             const availableRoles = roles?.map((r: { role: string }) => r.role as Role) || [];
-
-            // Default to customer if no roles found (fallback)
             let defaultRole = availableRoles.includes('customer') ? 'customer' : (availableRoles.includes('driver') ? 'driver' : null);
 
-            if (!defaultRole) {
-                console.warn('No roles found for user, defaulting to customer');
-                defaultRole = 'customer';
-            }
+            if (!defaultRole) defaultRole = 'customer';
 
-            // Restore the last active role saved natively on the device
             const savedRole = await getStoredRole();
             if (savedRole && availableRoles.includes(savedRole as Role)) {
                 defaultRole = savedRole as any;
             }
 
+            const finalRoles = Array.from(new Set([...availableRoles, 'customer' as Role]));
+
+            // 5. Cache the successful auth data for offline use
+            await setCachedAuthData({
+                user,
+                profile,
+                roles: finalRoles,
+                activeRole: defaultRole
+            });
+
             set({
                 user: user,
                 profile: profile || null,
-                roles: availableRoles.length > 0 ? availableRoles : ['customer'],
+                roles: finalRoles,
                 activeRole: defaultRole as any,
                 loading: false,
                 isRefreshing: false
             });
         } catch (error: any) {
-            // Check for invalid refresh token during getUser or other calls
-            if (error.message?.includes('Refresh Token Not Found') || error.message?.includes('Invalid Refresh Token')) {
-                console.log('[Auth] Invalid refresh token in catch block, clearing auth state.');
-                await supabase.auth.signOut().catch(() => {});
+            console.warn('[Auth] Session refresh failed (likely offline):', error.message);
+            
+            // If we're already showing something (from cache), don't wipe it out on network failure
+            const state = get();
+            if (state.user) {
+                set({ loading: false, isRefreshing: false });
             } else {
-                console.error('Session refresh failed:', error);
+                set({ user: null, profile: null, roles: [], activeRole: null, loading: false, isRefreshing: false });
             }
-            set({ user: null, profile: null, roles: [], activeRole: null, loading: false, isRefreshing: false });
         }
     },
 

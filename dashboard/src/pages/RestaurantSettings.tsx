@@ -385,9 +385,19 @@ export const RestaurantSettings = () => {
         return (
             <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
                 <header className="flex justify-between items-end">
-                    <div className="space-y-1">
-                        <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
-                        <p className="text-muted text-sm font-medium">Manage your store operations and payouts</p>
+                    <div className="flex items-center gap-4">
+                        {isAdminRoute && !isNew && (
+                            <button
+                                onClick={() => navigate('/admin/restaurants')}
+                                className="p-2 hover:bg-white/5 rounded-xl text-muted hover:text-white transition-colors border border-white/5"
+                            >
+                                <ChevronLeft size={24} />
+                            </button>
+                        )}
+                        <div className="space-y-1">
+                            <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
+                            <p className="text-muted text-sm font-medium">Manage your store operations and payouts</p>
+                        </div>
                     </div>
                     <button
                         form="settings-form"
