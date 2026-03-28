@@ -45,22 +45,37 @@ DECLARE
     r_lat DOUBLE PRECISION;
     r_lng DOUBLE PRECISION;
 BEGIN
-    -- Only run when status flips TO 'ready_for_pickup'
-    IF NEW.status = 'ready_for_pickup' AND (OLD.status IS NULL OR OLD.status != 'ready_for_pickup') THEN
+    -- Only run when status flips TO 'ready_for_pickup' AND it's a delivery order
+    IF NEW.status = 'ready_for_pickup' 
+       AND (OLD.status IS NULL OR OLD.status != 'ready_for_pickup') 
+       AND (NEW.fulfillment_type = 'delivery' OR NEW.fulfillment_type IS NULL) THEN
         
         -- Get the restaurant coordinates
         SELECT lat, lng INTO r_lat, r_lng 
         FROM public.restaurants 
         WHERE id = NEW.restaurant_id;
 
+        -- Defensive check: if no coordinates, skip dispatch instead of crashing
+        IF r_lat IS NULL OR r_lng IS NULL THEN
+            RETURN NEW;
+        END IF;
+
         -- Calculate distance using Haversine and push to top 5 closest online drivers
+        -- Added LEAST(1.0, GREATEST(-1.0, ...)) to prevent acos() floating point errors
         INSERT INTO public.driver_job_offers (order_id, driver_id)
         SELECT NEW.id, dp.user_id 
         FROM public.driver_profiles dp
         WHERE dp.is_online = true 
+        AND dp.lat IS NOT NULL AND dp.lng IS NOT NULL
         ORDER BY 
-          (6371 * acos(cos(radians(COALESCE(dp.lat, 0))) * cos(radians(COALESCE(r_lat, 0))) * cos(radians(COALESCE(r_lng, 0)) - radians(COALESCE(dp.lng, 0))) + sin(radians(COALESCE(dp.lat, 0))) * sin(radians(COALESCE(r_lat, 0))))) ASC
-        LIMIT 5;
+          (6371 * acos(
+             LEAST(1.0, GREATEST(-1.0, 
+               cos(radians(dp.lat)) * cos(radians(r_lat)) * cos(radians(r_lng) - radians(dp.lng)) + 
+               sin(radians(dp.lat)) * sin(radians(r_lat))
+             ))
+          )) ASC
+        LIMIT 5
+        ON CONFLICT (order_id, driver_id) DO NOTHING;
     END IF;
 
     RETURN NEW;
