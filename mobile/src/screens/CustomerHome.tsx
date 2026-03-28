@@ -603,6 +603,11 @@ export const CustomerHome = () => {
                                 <GooglePlacesAutocomplete
                                     ref={googlePlacesRef}
                                     placeholder="Search delivery address..."
+                                    textInputProps={{
+                                        placeholderTextColor: theme.textMuted,
+                                        onFocus: () => animateModal(Dimensions.get('window').height * 0.8),
+                                        onBlur: () => animateModal(0),
+                                    }}
                                     fetchDetails={true}
                                     minLength={2}
                                     enablePoweredByContainer={false}
@@ -640,12 +645,14 @@ export const CustomerHome = () => {
                                         container: { flex: 0, zIndex: 1000 },
                                         textInputContainer: { width: '100%' },
                                         textInput: {
-                                            height: 44,
+                                            height: 48,
                                             color: theme.text,
                                             fontSize: 16,
                                             backgroundColor: theme.surface,
-                                            borderRadius: 22,
+                                            borderRadius: 24,
                                             paddingLeft: 20,
+                                            borderWidth: 1,
+                                            borderColor: theme.border,
                                             shadowColor: '#000',
                                             shadowOffset: { width: 0, height: 2 },
                                             shadowOpacity: 0.2,
@@ -658,7 +665,7 @@ export const CustomerHome = () => {
                                             borderRadius: 16,
                                             marginTop: 8,
                                             borderWidth: 1,
-                                            borderColor: theme.surface,
+                                            borderColor: theme.border,
                                             position: 'absolute',
                                             top: 45,
                                             left: 0,
@@ -672,12 +679,12 @@ export const CustomerHome = () => {
                                         },
                                         row: { 
                                             padding: 13, 
-                                            height: 48, 
+                                            height: 52, 
                                             flexDirection: 'row', 
                                             alignItems: 'center',
                                             backgroundColor: theme.background 
                                         },
-                                        separator: { height: 1.5, backgroundColor: theme.surface },
+                                        separator: { height: 1, backgroundColor: theme.border },
                                         description: { color: theme.text, fontSize: 14 }
                                     }}
                                 />
