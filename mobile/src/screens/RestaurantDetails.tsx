@@ -96,6 +96,16 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
     const categories = Array.from(new Set(menu?.map((i: any) => i.category))) as string[];
     const filteredCategories = Array.from(new Set(filteredMenu.map((i: any) => i.category))) as string[];
 
+    // Integrated Image Prefetching for the entire visible menu
+    React.useEffect(() => {
+        if (menu && menu.length > 0) {
+            const urls = menu.map(m => m.image_url).filter(url => !!url);
+            if (urls.length > 0) {
+                Image.prefetch(urls);
+            }
+        }
+    }, [menu]);
+
     const stickyOpacity = scrollY.interpolate({
         inputRange: [140, 220],
         outputRange: [0, 1],
@@ -221,8 +231,10 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                         source={restaurant?.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                         style={styles.heroImage}
                         contentFit="cover"
-                        cachePolicy="memory-disk"
-                        transition={200}
+                        cachePolicy="disk"
+                        priority="high"
+                        transition={300}
+                        placeholder="L6PZf-S4.AyD_NbH9G_dyD%MwvVs"
                     />
                     <View style={styles.navOverlay}>
                         <TouchableOpacity style={[styles.iconButton, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => navigation.goBack()}>
@@ -321,12 +333,13 @@ export const RestaurantDetails = ({ route, navigation }: any) => {
                                         </View>
                                         <View style={styles.itemAction}>
                                             {item.image_url && (
-                                                <Image 
-                                                    source={item.image_url} 
-                                                    style={styles.itemImage} 
-                                                    contentFit="cover" 
-                                                    cachePolicy="memory-disk"
-                                                    transition={200}
+                                                <Image
+                                                    source={item.image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
+                                                    style={styles.itemImage}
+                                                    contentFit="cover"
+                                                    cachePolicy="disk"
+                                                    transition={300}
+                                                    placeholder="L6PZf-S4.AyD_NbH9G_dyD%MwvVs"
                                                 />
                                             )}
                                             <TouchableOpacity

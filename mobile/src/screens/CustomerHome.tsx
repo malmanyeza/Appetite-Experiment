@@ -97,7 +97,6 @@ export const CustomerHome = () => {
             useNativeDriver: true,
         }).start();
     };
-
     // Sync map region when selected location changes
     React.useEffect(() => {
         if (selectedLocation?.lat && selectedLocation?.lng) {
@@ -231,6 +230,16 @@ export const CustomerHome = () => {
             return result;
         }
     });
+
+    // Integrated Smart Prefetching for the home feed
+    React.useEffect(() => {
+        if (restaurants && Array.isArray(restaurants) && restaurants.length > 0) {
+            const urls = restaurants.slice(0, 10).map((r: any) => r.cover_image_url).filter(u => !!u);
+            if (urls.length > 0) {
+                Image.prefetch(urls);
+            }
+        }
+    }, [restaurants]);
 
     // 4. Auto-trigger modal after restaurants load (One-time)
     React.useEffect(() => {
@@ -509,8 +518,10 @@ export const CustomerHome = () => {
                                 source={item.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                                 style={styles.restaurantImage}
                                 contentFit="cover"
-                                cachePolicy="memory-disk"
-                                transition={200}
+                                cachePolicy="disk"
+                                priority="high"
+                                transition={300}
+                                placeholder="L6PZf-S4.AyD_NbH9G_dyD%MwvVs"
                             />
                             <View style={styles.restaurantDetails}>
                                 <View style={styles.row}>
