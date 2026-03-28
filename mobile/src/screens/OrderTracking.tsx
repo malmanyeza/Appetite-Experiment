@@ -88,7 +88,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
 
     const resolvedOrderId = passedOrderId || activeOrder?.id;
 
-    const { data: order, isLoading: isOrderLoading, refetch } = useQuery({
+    const { data: order, isLoading: isOrderLoading, refetch, isRefetching } = useQuery({
         queryKey: ['order', resolvedOrderId],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -478,7 +478,17 @@ export const OrderTracking = ({ route, navigation }: any) => {
                 <View style={{ width: 24 }} />
             </View>
 
-            <View style={styles.content}>
+            <ScrollView 
+                contentContainerStyle={styles.content}
+                refreshControl={
+                    <RefreshControl 
+                        refreshing={isRefetching} 
+                        onRefresh={refetch}
+                        tintColor={theme.accent}
+                        colors={[theme.accent]}
+                    />
+                }
+            >
                 <View style={[styles.statusCard, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.restaurantName, { color: theme.text }]}>{order.restaurants?.name}</Text>
                     <Text style={[styles.statusText, { color: theme.accent }]}>
@@ -558,7 +568,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
                         );
                     })}
                 </View>
-            </View>
+            </ScrollView>
 
 
             {/* Live Map Overlay */}
