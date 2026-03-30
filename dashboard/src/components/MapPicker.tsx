@@ -149,9 +149,11 @@ export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange, onPlac
             let sublocality = '';
             let locality = '';
             let adminArea2 = '';
+            let route = '';
 
             components?.forEach((c: any, index: number) => {
                 if (c.types.includes('locality')) locality = c.long_name;
+                if (c.types.includes('route')) route = c.long_name;
                 if (c.types.includes('administrative_area_level_2')) adminArea2 = c.long_name;
                 if (c.types.includes('neighborhood')) neighborhood = c.long_name;
                 if (c.types.includes('sublocality_level_1')) sublocality = c.long_name;
