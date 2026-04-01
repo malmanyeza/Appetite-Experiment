@@ -79,8 +79,14 @@ export const AdminDispatch = () => {
     const selectedRoute = (() => {
         if (!selectedOrder) return undefined;
         
-        const rLat = selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat;
-        const rLng = selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng;
+        // Robust extraction for Route as well
+        const loc = Array.isArray(selectedOrder.restaurant_locations) 
+            ? selectedOrder.restaurant_locations[0] 
+            : selectedOrder.restaurant_locations;
+
+        const rLat = loc?.lat || selectedOrder.restaurants?.lat;
+        const rLng = loc?.lng || selectedOrder.restaurants?.lng;
+
         // Check both snapshot (live) and linked address
         const cLat = selectedOrder.delivery_address_snapshot?.lat || selectedOrder.delivery_address?.lat;
         const cLng = selectedOrder.delivery_address_snapshot?.lng || selectedOrder.delivery_address?.lng;
@@ -102,26 +108,36 @@ export const AdminDispatch = () => {
         };
     })();
 
-    const mapCenter = (selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat)
-        ? { 
-            lat: selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat, 
-            lng: selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng 
-        } 
-        : { lat: -17.8252, lng: 31.0335 };
+    const mapCenter = (() => {
+        const loc = Array.isArray(selectedOrder?.restaurant_locations) 
+            ? selectedOrder?.restaurant_locations[0] 
+            : selectedOrder?.restaurant_locations;
+        
+        const rLat = loc?.lat || selectedOrder?.restaurants?.lat;
+        const rLng = loc?.lng || selectedOrder?.restaurants?.lng;
+
+        return rLat ? { lat: Number(rLat), lng: Number(rLng) } : { lat: -17.8252, lng: 31.0335 };
+    })();
 
     const markers: any[] = [];
     
     // Add selected restaurant
     if (selectedOrder) {
-        const rLat = selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat;
-        const rLng = selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng;
+        // Robust extraction: Handle if restaurant_locations is an array or object
+        const loc = Array.isArray(selectedOrder.restaurant_locations) 
+            ? selectedOrder.restaurant_locations[0] 
+            : selectedOrder.restaurant_locations;
+            
+        const rLat = loc?.lat || selectedOrder.restaurants?.lat;
+        const rLng = loc?.lng || selectedOrder.restaurants?.lng;
+
         if (rLat && rLng) {
             markers.push({
                 id: 'restaurant-' + selectedOrder.id,
-                lat: rLat,
-                lng: rLng,
+                lat: Number(rLat),
+                lng: Number(rLng),
                 type: 'restaurant' as const,
-                title: selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name || 'Pickup Point',
+                title: loc?.location_name || selectedOrder.restaurants?.name || 'Pickup Point',
                 details: `Order Reference: #${selectedOrder.id.slice(0, 8).toUpperCase()}`
             });
         }
@@ -136,7 +152,7 @@ export const AdminDispatch = () => {
                 lng: Number(cLng),
                 type: 'customer' as const,
                 title: 'Delivery Destination',
-                details: selectedOrder.delivery_address_snapshot?.address || 'Customer Location'
+                details: `${selectedOrder.delivery_address_snapshot?.address || selectedOrder.delivery_address?.physical_address || 'Customer Location'}`
             });
         }
     }
