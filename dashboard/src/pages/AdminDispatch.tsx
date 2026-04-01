@@ -51,14 +51,16 @@ export const AdminDispatch = () => {
     const mapRef = useRef<any>(null); // New: Link to GoogleMapBox
 
     // 3. Dynamic GPS Dispatch Query
-    const { data: closestDrivers, isLoading: isDriversLoading } = useQuery({
-        queryKey: ['closest-drivers', selectedOrder?.restaurants?.lat, selectedOrder?.restaurants?.lng],
+        queryKey: ['closest-drivers', selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat, selectedOrder?.restaurant_locations?.lng || selectedOrder?.restaurants?.lng],
         queryFn: async () => {
-            if (!selectedOrder?.restaurants?.lat || !selectedOrder?.restaurants?.lng) return [];
+            const lat = selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat;
+            const lng = selectedOrder?.restaurant_locations?.lng || selectedOrder?.restaurants?.lng;
+            
+            if (!lat || !lng) return [];
 
             const { data, error } = await supabase.rpc('get_closest_drivers', {
-                r_lat: selectedOrder.restaurants.lat,
-                r_lng: selectedOrder.restaurants.lng,
+                r_lat: lat,
+                r_lng: lng,
                 max_distance_km: 15,
                 exclude_driver_id: null
             });
@@ -73,22 +75,29 @@ export const AdminDispatch = () => {
     const assignMutation = { isPending: false }; // Mock to prevent errors if still referenced
 
     // Prepare map markers
-    const mapCenter = selectedOrder?.restaurants?.lat 
-        ? { lat: selectedOrder.restaurants.lat, lng: selectedOrder.restaurants.lng } 
+    const mapCenter = (selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat)
+        ? { 
+            lat: selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat, 
+            lng: selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng 
+        } 
         : { lat: -17.8252, lng: 31.0335 };
 
     const markers: any[] = [];
     
     // Add selected restaurant
-    if (selectedOrder?.restaurants) {
-        markers.push({
-            id: 'restaurant-' + selectedOrder.id,
-            lat: selectedOrder.restaurants.lat,
-            lng: selectedOrder.restaurants.lng,
-            type: 'restaurant' as const,
-            title: selectedOrder.restaurants.name,
-            details: `Order Reference: #${selectedOrder.id.slice(0, 8).toUpperCase()}`
-        });
+    if (selectedOrder) {
+        const rLat = selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat;
+        const rLng = selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng;
+        if (rLat && rLng) {
+            markers.push({
+                id: 'restaurant-' + selectedOrder.id,
+                lat: rLat,
+                lng: rLng,
+                type: 'restaurant' as const,
+                title: selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name || 'Pickup Point',
+                details: `Order Reference: #${selectedOrder.id.slice(0, 8).toUpperCase()}`
+            });
+        }
     }
 
     // Add ALL drivers from the fleet for global monitoring
@@ -228,9 +237,12 @@ export const AdminDispatch = () => {
 
                     {/* Dispatch Console Overlay */}
                     {selectedOrder && (
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[550px] glass rounded-2xl border border-white/20 shadow-2xl z-[1000] overflow-hidden flex flex-col">
                             <div className="p-4 bg-[#FF4D00]/10 border-b border-white/10 flex justify-between items-center">
-                                <h3 className="font-bold text-accent">Assign Rider: Order #{selectedOrder.id.slice(0, 8).toUpperCase()}</h3>
+                                <h3 className="font-bold text-accent">
+                                    Assign Rider: 
+                                    <span className="text-white ml-2">#{selectedOrder.id.slice(0, 8).toUpperCase()}</span>
+                                    <span className="text-muted ml-2 text-[10px] uppercase font-black">@ {selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name}</span>
+                                </h3>
                                 <button onClick={() => setSelectedOrder(null)} className="text-white hover:text-accent font-bold">×</button>
                             </div>
                             <div className="p-4 max-h-[350px] overflow-y-auto space-y-3 bg-[#0F0F0F]/80 backdrop-blur-xl">

@@ -36,7 +36,7 @@ export const ordersService = {
             lat,
             lng
         ),
-        locations:location_id (
+        restaurant_locations:location_id (
             lat,
             lng,
             location_name,
