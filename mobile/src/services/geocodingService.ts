@@ -1,6 +1,10 @@
 import * as ExpoLocation from 'expo-location';
 
-const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyAfW8js09sB0cfQzz19aRBkSE7sDMy5cu0';
+
+if (!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) {
+    console.log('[GeocodingService] Env key missing, using fallback.');
+}
 
 export interface GeocodeResult {
     city: string;

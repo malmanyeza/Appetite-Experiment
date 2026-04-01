@@ -48,6 +48,10 @@ export const LoginScreen = ({ navigation }: any) => {
                 if (error.message.includes('Invalid login credentials')) {
                     throw new Error('Incorrect email or password. Please try again.');
                 }
+                if (error.message.toLowerCase().includes('email not confirmed')) {
+                    navigation.navigate('EmailVerification', { email: email.trim() });
+                    return;
+                }
                 throw error;
             }
 
@@ -128,6 +132,15 @@ export const LoginScreen = ({ navigation }: any) => {
                             />
                         </View>
 
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('ForgotPassword')}
+                            style={styles.forgotPasswordContainer}
+                        >
+                            <Text style={[styles.forgotPasswordText, { color: theme.textMuted }]}>
+                                Forgot Password?
+                            </Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.loginButton, { backgroundColor: theme.accent }]}
                             onPress={handleLogin}
@@ -206,4 +219,12 @@ const styles = StyleSheet.create({
     },
     footerText: { fontSize: 16 },
     signUpLink: { fontSize: 16, fontWeight: 'bold' },
+    forgotPasswordContainer: {
+        alignSelf: 'flex-end',
+        marginTop: 4,
+    },
+    forgotPasswordText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
 });

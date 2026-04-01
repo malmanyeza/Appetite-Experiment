@@ -263,22 +263,33 @@ export const RestaurantOrders = () => {
                         </button>
                     )}
                     {order.status === 'ready_for_pickup' && (
-                        <div className={cn(
-                            "text-center py-3 rounded-xl border flex flex-col gap-1",
-                            order.fulfillment_type === 'pickup' 
-                                ? "bg-purple-500/20 border-purple-500/50 border-2 shadow-[0_0_15px_rgba(168,85,247,0.15)]" 
-                                : "bg-purple-500/10 border-purple-500/20"
-                        )}>
-                            <p className={cn(
-                                "text-[11px] font-black uppercase tracking-wider",
-                                order.fulfillment_type === 'pickup' ? "text-purple-300" : "text-purple-400"
+                        <div className="flex flex-col gap-2">
+                            <div className={cn(
+                                "text-center py-3 rounded-xl border flex flex-col gap-1",
+                                order.fulfillment_type === 'pickup' 
+                                    ? "bg-purple-500/20 border-purple-500/50 border-2 shadow-[0_0_15px_rgba(168,85,247,0.15)]" 
+                                    : "bg-purple-500/10 border-purple-500/20"
                             )}>
-                                {order.fulfillment_type === 'pickup' ? "Awaiting Customer Collection" : "Driver dispatch started..."}
-                            </p>
-                            {order.fulfillment_type === 'pickup' && (
-                                <p className="text-[10px] text-purple-400/70 font-bold">
-                                    Customer has been notified to collect
+                                <p className={cn(
+                                    "text-[11px] font-black uppercase tracking-wider",
+                                    order.fulfillment_type === 'pickup' ? "text-purple-300" : "text-purple-400"
+                                )}>
+                                    {order.fulfillment_type === 'pickup' ? "Awaiting Customer Collection" : "Driver dispatch started..."}
                                 </p>
+                                {order.fulfillment_type === 'pickup' && (
+                                    <p className="text-[10px] text-purple-400/70 font-bold">
+                                        Customer has been notified to collect
+                                    </p>
+                                )}
+                            </div>
+
+                            {(order.fulfillment_type === 'pickup' || String(order.fulfillment_type || '').toLowerCase().trim() === 'pickup') && (
+                                <button
+                                    onClick={() => updateStatusMutation.mutate({ orderId: order.id, status: 'delivered' })}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] shadow-lg shadow-green-900/20"
+                                >
+                                    <CheckCircle2 size={16} /> Mark as Collected
+                                </button>
                             )}
                         </div>
                     )}

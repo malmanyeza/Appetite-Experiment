@@ -6,13 +6,33 @@ export const LoginPage = () => {
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [error, setError] = React.useState('');
+    const [success, setSuccess] = React.useState('');
     const [loading, setLoading] = React.useState(false);
-    const { signIn } = useAuthStore();
+    const { signIn, resetPasswordForEmail } = useAuthStore();
     const navigate = useNavigate();
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError('Please enter your email address to reset your password.');
+            return;
+        }
+        setError('');
+        setSuccess('');
+        setLoading(true);
+        try {
+            await resetPasswordForEmail(email);
+            setSuccess('Password reset link sent! Please check your email.');
+        } catch (err: any) {
+            setError(err.message || 'Failed to send reset link.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setSuccess('');
         setLoading(true);
         try {
             await signIn(email, password);
@@ -44,6 +64,12 @@ export const LoginPage = () => {
                     </div>
                 )}
 
+                {success && (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500 text-sm text-center">
+                        {success}
+                    </div>
+                )}
+
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-[#A3A3A3] ml-1">Email Address</label>
@@ -57,7 +83,16 @@ export const LoginPage = () => {
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-[#A3A3A3] ml-1">Password</label>
+                        <div className="flex justify-between items-center ml-1">
+                            <label className="text-sm font-medium text-[#A3A3A3]">Password</label>
+                            <button 
+                                type="button"
+                                onClick={handleForgotPassword}
+                                className="text-xs font-semibold text-[#FF4D00] hover:text-[#FF6A26] transition-colors"
+                            >
+                                Forgot Password?
+                            </button>
+                        </div>
                         <input
                             type="password"
                             required

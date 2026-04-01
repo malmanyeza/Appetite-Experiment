@@ -91,14 +91,24 @@ Deno.serve(async (req: Request) => {
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
         
         console.log('Triggering restaurant notification for confirmed order:', orderId);
-        await fetch(`${supabaseUrl}/functions/v1/notify_restaurant`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`
-            },
-            body: JSON.stringify({ ...order, status: orderStatus })
-        }).catch(err => console.error('Notification trigger failed:', err));
+        await Promise.all([
+            fetch(`${supabaseUrl}/functions/v1/notify_restaurant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`
+                },
+                body: JSON.stringify({ ...order, status: orderStatus })
+            }),
+            fetch(`${supabaseUrl}/functions/v1/send_order_email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`
+                },
+                body: JSON.stringify({ orderId: orderId })
+            })
+        ]).catch(err => console.error('Notification trigger failed:', err));
     }
 
     return new Response('', { status: 200 }); 

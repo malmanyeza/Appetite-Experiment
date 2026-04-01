@@ -431,7 +431,7 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                                         }
                                     }}
                                     query={{
-                                        key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+                                        key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyAfW8js09sB0cfQzz19aRBkSE7sDMy5cu0',
                                         language: 'en',
                                         components: 'country:zw',
                                         types: 'establishment|geocode',

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Appetite",
     "slug": "appetite-mobile",
+    "scheme": "appetite",
     "version": "1.2.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

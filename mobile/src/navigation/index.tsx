@@ -23,6 +23,9 @@ import { OrderDetailsScreen } from '../screens/OrderDetailsScreen';
 import { DriverOnboarding } from '../screens/DriverOnboarding';
 import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
 import { TermsOfServiceScreen } from '../screens/TermsOfServiceScreen';
+import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -139,6 +142,9 @@ export const RootNavigator = () => {
                     <Stack.Screen name="SignUp" component={SignUpScreen} />
                     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
                     <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+                    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+                    <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+                    <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
                 </>
             ) : activeRole === 'driver' ? (
                 <Stack.Screen name="DriverApp" component={DriverTabs} />

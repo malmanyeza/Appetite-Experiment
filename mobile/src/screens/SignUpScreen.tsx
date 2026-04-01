@@ -75,7 +75,10 @@ export const SignUpScreen = ({ navigation }: any) => {
                 email,
                 password,
                 options: {
-                    data: { full_name: name.trim() }
+                    data: { 
+                        full_name: name.trim(),
+                        phone: phone.trim()
+                    }
                 }
             });
 
@@ -87,53 +90,16 @@ export const SignUpScreen = ({ navigation }: any) => {
             }
             if (!user) throw new Error('Sign up failed. Please try again.');
 
-            // 2. Create profile entries
-            // Using upsert to handle rare race conditions gracefully
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    full_name: name.trim(),
-                    phone: phone.trim()
-                });
+            // 2. The profile and roles are now created automatically on the server
+            // via a database trigger inside the 'auth.users' table to avoid RLS issues.
 
-            if (profileError) {
-                console.error('Profile creation error:', profileError);
-                
-                let errorMessage = 'There was an error setting up your profile.';
-                if (profileError.code === '23505') {
-                    errorMessage = 'This phone number is already associated with another account.';
-                }
-
-                Alert.alert('Sign Up Issue', errorMessage + ' Please try signing in if you already have an account.');
-                navigation.navigate('Login');
-                return;
-            }
-
-            // 3. Assign role
-            const { error: roleError } = await supabase
-                .from('user_roles')
-                .insert({
-                    user_id: user.id,
-                    role: role
-                });
-
-            if (roleError) {
-                console.error('Role assignment error:', roleError);
-                // We continue because they have a profile, but the role might need fixing via support or re-login
-            }
-
-            // 5. Force session refresh to accurately load the new role
+            // 3. Force session refresh to accurately load the new role
             await refreshSession();
 
             // If Supabase didn't auto-login (e.g. email verification required)
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
-                Alert.alert(
-                    'Account Created!',
-                    'Welcome to Appetite! Please check your email for a verification link before signing in.',
-                    [{ text: 'Got it', onPress: () => navigation.navigate('Login') }]
-                );
+                navigation.navigate('EmailVerification', { email: email.trim() });
             }
             // If they are auto-logged in, they will be seamlessly routed once we release the lock below.
 

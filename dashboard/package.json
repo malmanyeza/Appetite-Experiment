@@ -21,8 +21,8 @@
         "react-router-dom": "^6.21.3",
         "recharts": "^3.8.0",
         "tailwind-merge": "^2.2.0",
-        "zustand": "^4.5.0",
-        "zod": "^3.22.4"
+        "zod": "^3.22.4",
+        "zustand": "^4.5.0"
     },
     "devDependencies": {
         "@types/react": "^18.2.43",

@@ -14,7 +14,11 @@ import { WifiOff } from 'lucide-react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from 'react-error-boundary';
+import { GlobalError } from './src/components/GlobalError';
 import * as Sentry from '@sentry/react-native';
+import { createNavigationContainerRef } from '@react-navigation/native';
+
+export const navigationRef = createNavigationContainerRef();
 
 Sentry.init({
   dsn: 'https://a44a140302c25fae7acd8834c1089bc8@o4511050037723136.ingest.us.sentry.io/4511050041720832',
@@ -41,15 +45,23 @@ if (typeof ErrorUtils !== 'undefined') {
     ErrorUtils.setGlobalHandler((error, isFatal) => {
         console.log('--- GLOBAL ERROR ---', error.message);
         Sentry.captureException(error);
-        if (defaultHandler) defaultHandler(error, isFatal);
+        
+        // In development, we might still want to see the RedBox for easier debugging.
+        // In production, we definitely want to avoid it.
+        if (__DEV__) {
+            if (defaultHandler) defaultHandler(error, isFatal);
+        } else {
+            // In production, we've already logged to Sentry.
+            // If it's fatal, the ErrorBoundary at the root will handle it if it's a render error.
+            // For other fatal errors, we could show a final alert.
+            if (isFatal) {
+                // You could add a native alert here if needed
+            }
+        }
     });
 }
 
-const FallbackComponent = ({ error }: any) => (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-        <ActivityIndicator size="large" color="#FF4D00" />
-    </View>
-);
+// FallbackComponent is now handled by GlobalError.tsx
 
 const ConnectionBanner = ({ isOnline, theme }: { isOnline: boolean, theme: any }) => {
     if (isOnline) return null;
@@ -118,6 +130,12 @@ function App() {
                 refreshSession(session);
             } else if (event === 'SIGNED_OUT') {
                 refreshSession(null);
+            } else if (event === 'PASSWORD_RECOVERY') {
+                // The SDK will handle the session, we just need to navigate to the ResetPassword screen.
+                console.log('[Auth] Password recovery event detected: Navigating to ResetPassword');
+                if (navigationRef.isReady()) {
+                    navigationRef.navigate('ResetPassword' as never);
+                }
             }
         });
 
@@ -134,10 +152,16 @@ function App() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <ErrorBoundary FallbackComponent={FallbackComponent}>
+            <ErrorBoundary 
+                FallbackComponent={GlobalError as any}
+                onReset={() => {
+                    // Reset app state if needed
+                    queryClient.clear();
+                }}
+            >
                 <QueryClientProvider client={queryClient}>
                     <ThemeContext.Provider value={{ theme, isDark }}>
-                        <NavigationContainer>
+                        <NavigationContainer ref={navigationRef}>
                             <StatusBar style={isDark ? 'light' : 'dark'} />
                             <ConnectionBanner isOnline={isOnline} theme={theme} />
                             <RootNavigator />

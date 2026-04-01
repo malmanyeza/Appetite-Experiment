@@ -32,7 +32,15 @@ export const ordersService = {
         profiles:customer_id (full_name, phone),
         restaurants:restaurant_id (
             name,
-            owner_phone
+            owner_phone,
+            lat,
+            lng
+        ),
+        locations:location_id (
+            lat,
+            lng,
+            location_name,
+            physical_address
         ),
         order_items (*)
       `)

@@ -17,8 +17,14 @@ const statusConfig: Record<string, { label: string, classes: string }> = {
     'cancelled': { label: 'Cancelled', classes: 'bg-red-500/20 text-red-500 border-red-500/30' },
 };
 
-export const StatusPill = ({ status, className }: { status: string, className?: string }) => {
+export const StatusPill = ({ status, fulfillmentType, className }: { status: string, fulfillmentType?: string, className?: string }) => {
+    const isPickup = String(fulfillmentType || '').toLowerCase().trim() === 'pickup';
     const config = statusConfig[status] || { label: status, classes: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+
+    let label = config.label;
+    if (status === 'delivered' && isPickup) {
+        label = 'Collected';
+    }
 
     return (
         <span className={cn(
@@ -26,7 +32,7 @@ export const StatusPill = ({ status, className }: { status: string, className?: 
             config.classes,
             className
         )}>
-            {config.label}
+            {label}
         </span>
     );
 };

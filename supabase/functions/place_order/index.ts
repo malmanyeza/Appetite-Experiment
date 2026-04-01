@@ -207,14 +207,24 @@ Deno.serve(async (req: Request) => {
     if (paymentMethod === 'cod') {
         // Trigger restaurant notification - Await to ensure it completes
         console.log('Triggering restaurant notification for COD order:', newOrder.id);
-        await fetch(`${supabaseUrl}/functions/v1/notify_restaurant`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`
-            },
-            body: JSON.stringify(newOrder)
-        }).catch(err => console.error('Notification trigger failed:', err));
+        await Promise.all([
+            fetch(`${supabaseUrl}/functions/v1/notify_restaurant`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`
+                },
+                body: JSON.stringify(newOrder)
+            }),
+            fetch(`${supabaseUrl}/functions/v1/send_order_email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`
+                },
+                body: JSON.stringify({ orderId: newOrder.id })
+            })
+        ]).catch(err => console.error('Notification trigger failed:', err));
 
         return new Response(JSON.stringify({ 
             success: true, 

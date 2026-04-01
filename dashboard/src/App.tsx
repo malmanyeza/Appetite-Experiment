@@ -17,6 +17,7 @@ import { AdminDrivers } from './pages/AdminDrivers';
 import { AdminDispatch } from './pages/AdminDispatch';
 import { AdminConfig } from './pages/AdminConfig';
 import { AdminMassMenuScanner } from './pages/AdminMassMenuScanner';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
     const { user, currentRole, loading, initialized, refreshSession } = useAuthStore();
@@ -61,6 +62,7 @@ function App() {
             <HashRouter>
                 <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                     <Route path="/restaurant/*" element={
                         <ProtectedRoute allowedRoles={['restaurant', 'admin']}>

@@ -61,6 +61,8 @@ interface AuthState {
     setActiveRole: (role: 'customer' | 'driver') => void;
     setSigningUp: (status: boolean) => void;
     signOut: () => Promise<void>;
+    resetPasswordForEmail: (email: string) => Promise<void>;
+    updatePassword: (password: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -233,5 +235,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             await supabase.auth.signOut().catch(() => {});
         }
         set({ user: null, profile: null, roles: [], activeRole: null });
+    },
+
+    resetPasswordForEmail: async (email: string) => {
+        if (!supabase) return;
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: 'appetite://reset-password',
+        });
+        if (error) throw error;
+    },
+
+    updatePassword: async (password: string) => {
+        if (!supabase) return;
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
     },
 }));
