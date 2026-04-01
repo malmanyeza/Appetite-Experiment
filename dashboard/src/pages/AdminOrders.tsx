@@ -409,8 +409,8 @@ export const AdminOrders = () => {
                                     <Store size={14} /> Pickup Location
                                 </h3>
                                 <div className="p-5 rounded-xl border border-white/5 bg-white/[0.02]">
-                                    <p className="font-bold text-sm text-white">{selectedOrder.restaurants?.name || 'Unknown'}</p>
-                                    <p className="text-xs text-muted mt-1">{selectedOrder.restaurants?.physical_address || 'Address not listed'}</p>
+                                    <p className="font-bold text-sm text-white">{selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name || 'Unknown'}</p>
+                                    <p className="text-xs text-muted mt-1">{selectedOrder.restaurant_locations?.physical_address || selectedOrder.restaurants?.physical_address || 'Address not listed'}</p>
                                 </div>
                             </div>
 
@@ -538,11 +538,11 @@ export const AdminOrders = () => {
                                             // Store Marker (Prioritize branch locations)
                                             {
                                                 id: 'restaurant-' + selectedOrder.id,
-                                                lat: Number(selectedOrder.locations?.lat || selectedOrder.restaurants?.lat || 0),
-                                                lng: Number(selectedOrder.locations?.lng || selectedOrder.restaurants?.lng || 0),
+                                                lat: Number(selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat || 0),
+                                                lng: Number(selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng || 0),
                                                 type: 'restaurant' as const,
-                                                title: selectedOrder.locations?.location_name || selectedOrder.restaurants?.name || 'Store',
-                                                details: selectedOrder.locations?.physical_address || 'Pickup Point'
+                                                title: selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name || 'Store',
+                                                details: selectedOrder.restaurant_locations?.physical_address || 'Pickup Point'
                                             },
                                             // Customer Marker
                                             ...(selectedOrder.delivery_address_snapshot?.lat ? [{
@@ -561,8 +561,8 @@ export const AdminOrders = () => {
                                                     lng: Number(drivers.find(d => d.id === selectedOrder.driver_id).lng) 
                                                 },
                                                 waypoint: { 
-                                                    lat: Number(selectedOrder.locations?.lat || selectedOrder.restaurants?.lat || 0), 
-                                                    lng: Number(selectedOrder.locations?.lng || selectedOrder.restaurants?.lng || 0) 
+                                                    lat: Number(selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat || 0), 
+                                                    lng: Number(selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng || 0) 
                                                 },
                                                 destination: { 
                                                     lat: Number(selectedOrder.delivery_address_snapshot?.lat || 0), 
