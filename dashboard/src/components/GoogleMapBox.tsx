@@ -90,6 +90,8 @@ interface MarkerData {
     title: string;
     details?: string;
     phone?: string;
+    isOnline?: boolean; // New: To distinguish active drivers
+    lastSeen?: string;  // New: For telemetry info
 }
 
 interface GoogleMapBoxProps {
@@ -195,8 +197,8 @@ export const GoogleMapBox: React.FC<GoogleMapBoxProps> = ({
                         path: data.type === 'restaurant' 
                             ? window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW 
                             : 'M12,2c-4.4,0-8,3.6-8,8c0,5.4,7,11.5,7.3,11.8c0.2,0.1,0.5,0.2,0.7,0.2c0.2,0,0.5-0.1,0.7-0.2C13,21.5,20,15.4,20,10 C20,5.6,16.4,2,12,2z M12,13c-1.7,0-3-1.3-3-3s1.3-3,3-3s3,1.3,3,3S13.7,13,12,13z',
-                        fillColor: data.type === 'restaurant' ? '#FF4D00' : (data.type === 'driver' ? '#10B981' : '#3B82F6'),
-                        fillOpacity: 1,
+                        fillColor: data.type === 'restaurant' ? '#FF4D00' : (data.type === 'driver' ? (data.isOnline ? '#10B981' : '#9CA3AF') : '#3B82F6'),
+                        fillOpacity: data.type === 'driver' && !data.isOnline ? 0.65 : 1,
                         strokeWeight: 3, // Heavier stroke for visibility
                         strokeColor: '#FFFFFF',
                         scale: data.type === 'driver' ? 1.5 : 2.2, // Make Store and Customer much larger
@@ -215,8 +217,14 @@ export const GoogleMapBox: React.FC<GoogleMapBoxProps> = ({
                     if (infoWindowRef.current) {
                         infoWindowRef.current.setContent(`
                             <div style="color: #111; padding: 10px; font-family: system-ui, sans-serif;">
-                                <h4 style="margin: 0; font-weight: 800; font-size: 14px;">${data.title}</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+                                    <h4 style="margin: 0; font-weight: 800; font-size: 14px;">${data.title}</h4>
+                                    <span style="font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: ${data.isOnline ? '#DCFCE7' : '#F3F4F6'}; color: ${data.isOnline ? '#166534' : '#4B5563'}; text-transform: uppercase;">
+                                        ${data.isOnline ? 'Online' : 'Offline'}
+                                    </span>
+                                </div>
                                 <p style="margin: 4px 0; font-size: 11px; color: #666; font-weight: 500;">${data.details || ''}</p>
+                                ${data.lastSeen ? `<p style="margin: 2px 0; font-size: 10px; color: #999; font-weight: 600;">🕒 Last Seen: ${data.lastSeen}</p>` : ''}
                                 ${data.phone ? `<p style="margin: 8px 0 0 0; font-weight: bold; color: #FF4D00; font-size: 12px; border-top: 1px solid #eee; padding-top: 8px;">📞 ${data.phone}</p>` : ''}
                             </div>
                         `);

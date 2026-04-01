@@ -19,13 +19,32 @@ export const AdminDispatch = () => {
         refetchInterval: 5000 // Heartbeat every 5s
     });
 
+    // Helper for "Last Seen"
+    const getTimeAgo = (timestamp: string | null) => {
+        if (!timestamp) return 'Never';
+        const seconds = Math.floor((new Date().getTime() - new Date(timestamp).getTime()) / 1000);
+        if (seconds < 60) return 'Just now';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        return new Date(timestamp).toLocaleDateString();
+    };
+
     // 1. Pending Orders (Needs Assignment)
     const readyOrders = orders?.filter(order => !order.driver_id && (order.status === 'confirmed' || order.status === 'ready_for_pickup') && order.fulfillment_type !== 'pickup') || [];
     
     // 2. Active Orders (Trackable)
     const activeOrders = orders?.filter(order => order.driver_id && order.status !== 'completed' && order.status !== 'cancelled') || [];
 
-    const onlineDrivers = drivers?.filter(driver => driver.driver_profiles?.[0]?.is_online) || [];
+    const onlineDrivers = drivers?.filter(driver => {
+        const dp = driver.driver_profiles?.[0];
+        if (!dp?.is_online) return false;
+        // Also consider "stale" if no update in 2 hours
+        const lastUpdate = dp.last_location_update ? new Date(dp.last_location_update).getTime() : 0;
+        const isFresh = (new Date().getTime() - lastUpdate) < 120 * 60 * 1000;
+        return isFresh;
+    }) || [];
 
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const queryClient = useQueryClient();
@@ -71,47 +90,22 @@ export const AdminDispatch = () => {
         });
     }
 
-    // Add closest drivers during dispatch
-    closestDrivers?.forEach((d: any) => {
-        markers.push({
-            id: 'driver-' + d.driver_id,
-            lat: d.lat,
-            lng: d.lng,
-            type: 'driver' as const,
-            title: d.full_name,
-            details: `${Number(d.distance_km).toFixed(2)} km delivery radius`,
-            phone: d.phone
-        });
-    });
-
-    // Add active drivers if not already added
-    activeOrders.filter(o => o.driver_id).forEach(o => {
-        const driver = drivers?.find(d => d.id === o.driver_id);
-        if (driver?.lat && driver?.lng) {
+    // Add ALL drivers from the fleet for global monitoring
+    drivers?.forEach(d => {
+        const dp = d.driver_profiles?.[0];
+        const isOnline = onlineDrivers.some(od => od.id === d.id);
+        const lastSeenStr = getTimeAgo(dp?.last_location_update);
+        
+        if (d.lat && d.lng) {
             markers.push({
-                id: 'active-driver-' + driver.id,
-                lat: driver.lat,
-                lng: driver.lng,
-                type: 'driver' as const,
-                title: driver.full_name,
-                details: `Delivering Order #${o.id.slice(0, 8).toUpperCase()}`,
-                phone: driver.phone
-            });
-        }
-    });
-
-    // Add all online drivers for general monitoring
-    onlineDrivers.forEach(d => {
-        // Only add if not already in markers (to avoid duplicates from active/closest lists)
-        const exists = markers.some(m => m.id.includes(d.id));
-        if (!exists && d.lat && d.lng) {
-            markers.push({
-                id: 'online-driver-' + d.id,
+                id: 'fleet-driver-' + d.id,
                 lat: d.lat,
                 lng: d.lng,
                 type: 'driver' as const,
                 title: d.full_name,
-                details: d.driver_profiles?.[0]?.is_available ? 'Available' : 'Online',
+                isOnline,
+                lastSeen: lastSeenStr,
+                details: isOnline ? 'Online & Available' : `Last Seen: ${lastSeenStr}`,
                 phone: d.phone
             });
         }
@@ -175,27 +169,50 @@ export const AdminDispatch = () => {
                         </div>
                     </div>
 
-                    {/* Active Tracking Section */}
-                    <div className="h-[250px] flex flex-col overflow-hidden bg-black/10">
-                        <div className="p-3 border-b border-white/5">
-                        <h3 className="font-bold text-xs uppercase tracking-wider text-muted flex justify-between items-center">
-                            Live Activity
-                            <span className="bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full text-[10px]">{activeOrders.length}</span>
-                        </h3>
+                    {/* Fleet Status Section */}
+                    <div className="flex-1 flex flex-col overflow-hidden bg-black/20">
+                        <div className="p-3 border-b border-white/5 bg-white/[0.02]">
+                            <h3 className="font-bold text-xs uppercase tracking-wider text-muted flex justify-between items-center">
+                                All Fleet Status
+                                <span className="bg-white/10 text-white px-2 py-0.5 rounded-full text-[10px]">{drivers?.length || 0}</span>
+                            </h3>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                            {activeOrders.map(order => (
-                                <div key={order.id} className="p-2 rounded-lg bg-white/5 border border-white/5 flex flex-col gap-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-mono text-muted">#{order.id.slice(0, 8)}</span>
-                                        <span className="text-[10px] text-green-500 font-bold uppercase">{order.status}</span>
+                            {drivers?.sort((a: any, b: any) => {
+                                const aOnline = onlineDrivers.some(od => od.id === a.id);
+                                const bOnline = onlineDrivers.some(od => od.id === b.id);
+                                if (aOnline && !bOnline) return -1;
+                                if (!aOnline && bOnline) return 1;
+                                return 0;
+                            }).map(driver => {
+                                const isOnline = onlineDrivers.some(od => od.id === driver.id);
+                                const lastSeen = getTimeAgo(driver.driver_profiles?.[0]?.last_location_update);
+                                return (
+                                    <div 
+                                        key={driver.id} 
+                                        className="p-3 rounded-lg bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-white/10 transition-colors cursor-pointer"
+                                        onClick={() => {
+                                            if (driver.lat && driver.lng && googleMapRef.current) {
+                                                googleMapRef.current.panTo({ lat: driver.lat, lng: driver.lng });
+                                                googleMapRef.current.setZoom(16);
+                                            }
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-500'}`} />
+                                            <div>
+                                                <p className="text-xs font-bold text-white leading-none">{driver.full_name}</p>
+                                                <p className="text-[10px] text-muted mt-1">Seen: {lastSeen}</p>
+                                            </div>
+                                        </div>
+                                        {isOnline && (
+                                            <div className="p-1.5 rounded-md bg-green-500/10 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Navigation size={12} />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-white">
-                                        <Bike size={12} className="text-accent" />
-                                        <span>{order.drivers?.full_name || 'Assigned'}</span>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
