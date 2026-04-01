@@ -75,7 +75,33 @@ export const AdminDispatch = () => {
 
     const assignMutation = { isPending: false }; // Mock to prevent errors if still referenced
 
-    // Prepare map markers
+    // Prepare map markers & Route
+    const selectedRoute = (() => {
+        if (!selectedOrder) return undefined;
+        
+        const rLat = selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat;
+        const rLng = selectedOrder.restaurant_locations?.lng || selectedOrder.restaurants?.lng;
+        // Check both snapshot (live) and linked address
+        const cLat = selectedOrder.delivery_address_snapshot?.lat || selectedOrder.delivery_address?.lat;
+        const cLng = selectedOrder.delivery_address_snapshot?.lng || selectedOrder.delivery_address?.lng;
+
+        if (!rLat || !cLat) return undefined;
+
+        const driver = drivers?.find(d => d.id === selectedOrder.driver_id);
+        if (driver?.lat && driver?.lng) {
+            return {
+                origin: { lat: Number(driver.lat), lng: Number(driver.lng) },
+                waypoint: { lat: Number(rLat), lng: Number(rLng) },
+                destination: { lat: Number(cLat), lng: Number(cLng) }
+            };
+        }
+
+        return {
+            origin: { lat: Number(rLat), lng: Number(rLng) },
+            destination: { lat: Number(cLat), lng: Number(cLng) }
+        };
+    })();
+
     const mapCenter = (selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat)
         ? { 
             lat: selectedOrder.restaurant_locations?.lat || selectedOrder.restaurants?.lat, 
@@ -97,6 +123,20 @@ export const AdminDispatch = () => {
                 type: 'restaurant' as const,
                 title: selectedOrder.restaurant_locations?.location_name || selectedOrder.restaurants?.name || 'Pickup Point',
                 details: `Order Reference: #${selectedOrder.id.slice(0, 8).toUpperCase()}`
+            });
+        }
+
+        // Add Customer Pin
+        const cLat = selectedOrder.delivery_address_snapshot?.lat || selectedOrder.delivery_address?.lat;
+        const cLng = selectedOrder.delivery_address_snapshot?.lng || selectedOrder.delivery_address?.lng;
+        if (cLat && cLng) {
+            markers.push({
+                id: 'customer-' + selectedOrder.id,
+                lat: Number(cLat),
+                lng: Number(cLng),
+                type: 'customer' as const,
+                title: 'Delivery Destination',
+                details: selectedOrder.delivery_address_snapshot?.address || 'Customer Location'
             });
         }
     }
@@ -233,6 +273,7 @@ export const AdminDispatch = () => {
                         ref={mapRef}
                         center={mapCenter}
                         markers={markers}
+                        route={selectedRoute}
                         autoFit={true}
                     />
 
