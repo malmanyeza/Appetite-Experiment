@@ -51,6 +51,7 @@ export const AdminDispatch = () => {
     const mapRef = useRef<any>(null); // New: Link to GoogleMapBox
 
     // 3. Dynamic GPS Dispatch Query
+    const { data: closestDrivers, isLoading: isDriversLoading } = useQuery({
         queryKey: ['closest-drivers', selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat, selectedOrder?.restaurant_locations?.lng || selectedOrder?.restaurants?.lng],
         queryFn: async () => {
             const lat = selectedOrder?.restaurant_locations?.lat || selectedOrder?.restaurants?.lat;
