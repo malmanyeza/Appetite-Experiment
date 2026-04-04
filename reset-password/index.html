@@ -193,15 +193,23 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="loading-dots">Updating</span>';
 
-            const { error } = await supabaseClient.auth.updateUser({ password });
+            try {
+                // Ensure the session is still valid right before updating
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+                if (sessionError || !session) {
+                    throw new Error("Unable to verify your identity. The reset link may be invalid or expired. Please request a new one.");
+                }
 
-            if (error) {
-                showError(error.message);
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Update Password";
-            } else {
+                const { error } = await supabaseClient.auth.updateUser({ password });
+                if (error) throw error;
+
+                // Success
                 resetForm.style.display = 'none';
                 successState.style.display = 'block';
+            } catch (err) {
+                showError(err.message || "Failed to update password. Please try again.");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = "Update Password";
             }
         };
 
@@ -210,19 +218,38 @@
             errorMsg.style.display = 'block';
         }
 
-        // Automatic App Jump (Optional)
-        // If the URL contains a fragment but the user waits too long, we still handle it.
-        window.onload = () => {
-             const hash = window.location.hash;
-             if (!hash || hash.length < 10) {
-                 // Check if redirected with an error in search params
-                 const params = new URLSearchParams(window.location.hash.substring(1));
-                 if (params.get('error')) {
-                     showError("Link Expired: " + params.get('error_description') || "The reset link is invalid.");
-                     submitBtn.disabled = true;
-                 }
-             }
-        };
+        // 3. Verification on Page Load
+        window.addEventListener('load', async () => {
+            // Give Supabase a moment to handle the hash if it's currently doing so
+            setTimeout(async () => {
+                try {
+                    const { data: { session }, error } = await supabaseClient.auth.getSession();
+                    
+                    if (error) {
+                        showError("Verification Error: " + error.message);
+                        submitBtn.disabled = true;
+                        return;
+                    }
+
+                    if (!session) {
+                        // Check if the URL actually has tokens
+                        const hash = window.location.hash;
+                        if (!hash || hash.length < 20) {
+                            showError("Invalid Link: No recovery token found. Please click the link in your email again.");
+                            submitBtn.disabled = true;
+                        } else {
+                            // If hash is there but session isn't, the link is likely expired
+                            showError("Link Expired: This password reset link is no longer valid. Please request a new one from the app.");
+                            submitBtn.disabled = true;
+                        }
+                    } else {
+                        console.log("Recovery session confirmed for:", session.user?.email);
+                    }
+                } catch (err) {
+                    showError("Initialization Failed. Please refresh the page.");
+                }
+            }, 500); // 500ms delay to ensure the client has parsed the fragment
+        });
     </script>
 </body>
 </html>
