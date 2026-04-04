@@ -74,9 +74,9 @@ export const LoginScreen = ({ navigation }: any) => {
                 throw new Error('This user does not exist in the database. Please sign up or contact support.');
             }
 
-            // Manually trigger a store refresh to ensure the session is picked up immediately
-            // regardless of the race condition with the initial app boot check.
-            await useAuthStore.getState().refreshSession(data.session);
+            // Note: We no longer manually call refreshSession here.
+            // The onAuthStateChange listener in App.tsx combined with the new 
+            // instant-update logic in authStore.ts handles the transition automatically.
         } catch (error: any) {
             Alert.alert('Login Failed', error.message);
         } finally {

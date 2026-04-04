@@ -75,6 +75,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isRefreshing: false,
 
     refreshSession: async (providedSession?: any) => {
+        // 1. Instant Transition: If a session is provided, set the user state immediately
+        // This avoids the 'stuck on login screen' bug while profile data loads in background.
+        if (providedSession?.user) {
+            console.log('[Auth] Instant user set from provided session');
+            set({ 
+                user: providedSession.user,
+                loading: false
+            });
+        }
+
         // Bypass the refresh lock if a session is explicitly provided (e.g. from SIGNED_IN event)
         if (get().isRefreshing && !providedSession) {
             console.log('[Auth] Refresh already in progress, skipping background check');
@@ -84,8 +94,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         try {
             set({ isRefreshing: true });
             
-            // 1. Try to load cached data immediately to speed up splash screen exit
-            if (!get().user) {
+            // 2. Try to load cached data immediately to speed up splash screen exit
+            if (!get().user && !providedSession) {
                 const cached = await getCachedAuthData();
                 if (cached) {
                     console.log('[Auth] Restoring cached session data');
@@ -106,7 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return;
             }
 
-            // 2. Wrap network calls in a timeout to prevent hanging on splash screen
+            // 3. Wrap network calls in a timeout to prevent hanging on splash screen
             const TIMEOUT_MS = 6000;
 
             let session = providedSession;
@@ -132,20 +142,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 return;
             }
 
-            // 3. getUser() verifies the session with the server
-            const { data: { user }, error: authError }: any = await withTimeout(
-                supabase.auth.getUser(),
-                TIMEOUT_MS,
-                'User verification timed out'
-            );
+            // 4. getUser() verifies the session with the server
+            // If we just logged in (providedSession), we can skip this extra verify step for speed
+            let user = session.user;
+            if (!providedSession) {
+                const { data: { user: verifiedUser }, error: authError }: any = await withTimeout(
+                    supabase.auth.getUser(),
+                    TIMEOUT_MS,
+                    'User verification timed out'
+                );
 
-            if (authError || !user) {
-                await supabase.auth.signOut().catch(() => { });
-                set({ user: null, profile: null, roles: [], activeRole: null, loading: false });
-                return;
+                if (authError || !verifiedUser) {
+                    await supabase.auth.signOut().catch(() => { });
+                    set({ user: null, profile: null, roles: [], activeRole: null, loading: false });
+                    return;
+                }
+                user = verifiedUser;
             }
 
-            // 4. Fetch profile and roles (parallel for speed)
+            // 5. Fetch profile and roles (parallel for speed)
             const [profileRes, rolesRes]: any[] = await Promise.all([
                 withTimeout(supabase.from('profiles').select('*').eq('id', user.id).single(), TIMEOUT_MS, 'Profile fetch timed out'),
                 withTimeout(supabase.from('user_roles').select('role').eq('user_id', user.id), TIMEOUT_MS, 'Roles fetch timed out')
