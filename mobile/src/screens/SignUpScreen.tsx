@@ -79,7 +79,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                         full_name: name.trim(),
                         phone: phone.trim()
                     },
-                    emailRedirectTo: 'appetite://signup-callback'
+                    emailRedirectTo: 'https://malmanyeza.github.io/appetite/signup-callback'
                 }
             });
 

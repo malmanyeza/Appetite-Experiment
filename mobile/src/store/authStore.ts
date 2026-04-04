@@ -240,7 +240,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     resetPasswordForEmail: async (email: string) => {
         if (!supabase) return;
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: 'appetite://reset-password',
+            redirectTo: 'https://malmanyeza.github.io/appetite/reset-password',
         });
         if (error) throw error;
     },
