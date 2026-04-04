@@ -136,22 +136,29 @@ export const RootNavigator = () => {
 
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {/* Always include reset/callback screens to ensure deep links never fail */}
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-            
-            {!user || isSigningUp ? (
+            {user && !isSigningUp ? (
+                // Authenticated Stack
                 <>
+                    {activeRole === 'driver' ? (
+                        <Stack.Screen name="DriverApp" component={DriverTabs} />
+                    ) : (
+                        <Stack.Screen name="CustomerApp" component={CustomerTabs} />
+                    )}
+                    {/* We still include Login and ResetPassword in the stack as fallbacks for deep links */}
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+                </>
+            ) : (
+                // Unauthenticated Stack
+                <>
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
                     <Stack.Screen name="SignUp" component={SignUpScreen} />
                     <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
                     <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
                     <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
                     <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                 </>
-            ) : activeRole === 'driver' ? (
-                <Stack.Screen name="DriverApp" component={DriverTabs} />
-            ) : (
-                <Stack.Screen name="CustomerApp" component={CustomerTabs} />
             )}
         </Stack.Navigator>
     );
