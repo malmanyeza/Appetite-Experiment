@@ -81,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             console.log('[Auth] Instant user set from provided session');
             set({ 
                 user: providedSession.user,
+                isSigningUp: false, // Ensure we exit sign-up mode
                 loading: false
             });
         }
@@ -201,7 +202,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 roles: finalRoles,
                 activeRole: defaultRole as any,
                 loading: false,
-                isRefreshing: false
+                isRefreshing: false,
+                isSigningUp: false // Ensure we exit sign-up mode
             });
         } catch (error: any) {
             console.warn('[Auth] Session refresh failed (likely offline):', error.message);
@@ -249,7 +251,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (supabase) {
             await supabase.auth.signOut().catch(() => {});
         }
-        set({ user: null, profile: null, roles: [], activeRole: null });
+        set({ 
+            user: null, 
+            profile: null, 
+            roles: [], 
+            activeRole: null,
+            isSigningUp: false // Reset sign-up mode
+        });
     },
 
     resetPasswordForEmail: async (email: string) => {
