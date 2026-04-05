@@ -78,8 +78,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                     data: { 
                         full_name: name.trim(),
                         phone: phone.trim()
-                    },
-                    emailRedirectTo: 'https://malmanyeza.github.io/appetite/signup-callback'
+                    }
                 }
             });
 

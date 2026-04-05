@@ -11,12 +11,15 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { Mail, ArrowLeft, RefreshCcw, CheckCircle } from 'lucide-react-native';
+import { Mail, ArrowLeft, RefreshCcw, CheckCircle, Smartphone } from 'lucide-react-native';
+import { TextInput } from 'react-native'; // Added missing TextInput import
 
 export const EmailVerificationScreen = ({ route, navigation }: any) => {
     const { email } = route.params || { email: 'your email' };
     const { theme } = useTheme();
     const [loading, setLoading] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [otp, setOtp] = useState('');
     const [cooldown, setCooldown] = useState(0);
 
     useEffect(() => {
@@ -28,6 +31,31 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
         }
         return () => clearInterval(timer);
     }, [cooldown]);
+
+    const handleVerifyOTP = async () => {
+        if (otp.length !== 6) {
+            Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your email.');
+            return;
+        }
+
+        setVerifying(true);
+        try {
+            const { error } = await supabase.auth.verifyOtp({
+                email,
+                token: otp,
+                type: 'signup',
+            });
+
+            if (error) throw error;
+
+            Alert.alert('Success', 'Your email has been verified successfully!');
+            // Navigation handled by auth listener
+        } catch (error: any) {
+            Alert.alert('Verification Failed', error.message || 'Invalid or expired code.');
+        } finally {
+            setVerifying(false);
+        }
+    };
 
     const handleResendEmail = async () => {
         if (cooldown > 0) return;
@@ -41,10 +69,10 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
 
             if (error) throw error;
 
-            Alert.alert('Success', 'Verification email has been resent.');
+            Alert.alert('Success', 'A new verification code has been sent.');
             setCooldown(60); // 60 second cooldown
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to resend verification email.');
+            Alert.alert('Error', error.message || 'Failed to resend verification code.');
         } finally {
             setLoading(false);
         }
@@ -65,28 +93,38 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                         <View style={[styles.iconPulse, { backgroundColor: theme.accent, opacity: 0.15 }]} />
                         <Mail size={40} color={theme.accent} />
                     </View>
-                    <Text style={[styles.title, { color: theme.text }]}>Check your email</Text>
+                    <Text style={[styles.title, { color: theme.text }]}>Verify your email</Text>
                     <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-                        We've sent a verification link to{' '}
+                        Enter the 6-digit verification code sent to{' '}
                         <Text style={{ color: theme.text, fontWeight: 'bold' }}>{email}</Text>
                     </Text>
                 </View>
 
-                <View style={styles.instructions}>
-                    <View style={styles.instructionItem}>
-                        <CheckCircle size={18} color={theme.accent} />
-                        <Text style={[styles.instructionText, { color: theme.textMuted }]}>
-                            Click the link in the email to verify your account
-                        </Text>
-                    </View>
+                <View style={[styles.inputContainer, { backgroundColor: theme.surface }]}>
+                    <Smartphone size={20} color={theme.textMuted} />
+                    <TextInput
+                        style={[styles.otpInput, { color: theme.text }]}
+                        placeholder="000000"
+                        placeholderTextColor={theme.textMuted}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        value={otp}
+                        onChangeText={setOtp}
+                        autoFocus={true}
+                    />
                 </View>
 
                 <View style={styles.actions}>
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: theme.accent }]}
-                        onPress={() => navigation.navigate('Login')}
+                        onPress={handleVerifyOTP}
+                        disabled={verifying || otp.length !== 6}
                     >
-                        <Text style={styles.primaryButtonText}>I've Verified, Sign In</Text>
+                        {verifying ? (
+                            <ActivityIndicator size="small" color="white" />
+                        ) : (
+                            <Text style={styles.primaryButtonText}>Verify Code</Text>
+                        )}
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -104,7 +142,7 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                             <>
                                 <RefreshCcw size={18} color={theme.text} />
                                 <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
-                                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Email'}
+                                    {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend Code'}
                                 </Text>
                             </>
                         )}
@@ -149,6 +187,22 @@ const styles = StyleSheet.create({
     instructions: { marginBottom: 40, gap: 16 },
     instructionItem: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     instructionText: { fontSize: 14, flex: 1 },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        height: 60,
+        borderRadius: 16,
+        gap: 12,
+        marginBottom: 32,
+    },
+    otpInput: {
+        flex: 1,
+        fontSize: 24,
+        fontWeight: 'bold',
+        letterSpacing: 8,
+        textAlign: 'center',
+    },
     actions: { gap: 12 },
     primaryButton: {
         height: 60,
