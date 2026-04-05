@@ -9,7 +9,9 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
-    ScrollView
+    ScrollView,
+    Keyboard,
+    TouchableWithoutFeedback
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
@@ -116,13 +118,19 @@ export const SignUpScreen = ({ navigation }: any) => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <ArrowLeft color={theme.text} size={24} />
-                </TouchableOpacity>
+            <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+                keyboardShouldPersistTaps="handled"
+            >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <View style={styles.content}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => navigation.goBack()}
+                        >
+                            <ArrowLeft color={theme.text} size={24} />
+                        </TouchableOpacity>
 
                 <View style={styles.header}>
                     <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
@@ -139,6 +147,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                             value={name}
                             onChangeText={setName}
                             style={[styles.input, { color: theme.text }]}
+                            editable={!loading}
                         />
                     </View>
 
@@ -151,6 +160,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                             onChangeText={setPhone}
                             keyboardType="phone-pad"
                             style={[styles.input, { color: theme.text }]}
+                            editable={!loading}
                         />
                     </View>
 
@@ -164,6 +174,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                             autoCapitalize="none"
                             keyboardType="email-address"
                             style={[styles.input, { color: theme.text }]}
+                            editable={!loading}
                         />
                     </View>
 
@@ -176,6 +187,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                             onChangeText={setPassword}
                             secureTextEntry
                             style={[styles.input, { color: theme.text }]}
+                            editable={!loading}
                         />
                     </View>
 
@@ -208,6 +220,7 @@ export const SignUpScreen = ({ navigation }: any) => {
                             <Text style={styles.signUpButtonText}>Create Account</Text>
                         )}
                     </TouchableOpacity>
+
                     <View style={styles.footer}>
                         <Text style={[styles.footerText, { color: theme.textMuted }]}>Already have an account?</Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -215,14 +228,16 @@ export const SignUpScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </ScrollView>
-        </KeyboardAvoidingView>
-    );
+            </TouchableWithoutFeedback>
+        </ScrollView>
+    </KeyboardAvoidingView>
+);
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+    scrollContent: { flexGrow: 1, padding: 24 },
+    content: { padding: 0, marginTop: 40 },
     backButton: {
         width: 44,
         height: 44,
