@@ -7,7 +7,8 @@ import {
     SafeAreaView,
     Platform,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    KeyboardAvoidingView
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
@@ -33,8 +34,8 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
     }, [cooldown]);
 
     const handleVerifyOTP = async () => {
-        if (otp.length !== 6) {
-            Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your email.');
+        if (otp.length !== 8) {
+            Alert.alert('Invalid Code', 'Please enter the 8-digit code sent to your email.');
             return;
         }
 
@@ -79,7 +80,12 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+            style={[styles.container, { backgroundColor: theme.background }]}
+        >
+        <SafeAreaView style={{ flex: 1 }}>
             <View style={styles.content}>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -95,7 +101,7 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                     </View>
                     <Text style={[styles.title, { color: theme.text }]}>Verify your email</Text>
                     <Text style={[styles.subtitle, { color: theme.textMuted }]}>
-                        Enter the 6-digit verification code sent to{' '}
+                        Enter the 8-digit verification code sent to{' '}
                         <Text style={{ color: theme.text, fontWeight: 'bold' }}>{email}</Text>
                     </Text>
                 </View>
@@ -104,10 +110,10 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                     <Smartphone size={20} color={theme.textMuted} />
                     <TextInput
                         style={[styles.otpInput, { color: theme.text }]}
-                        placeholder="000000"
+                        placeholder="00000000"
                         placeholderTextColor={theme.textMuted}
                         keyboardType="number-pad"
-                        maxLength={6}
+                        maxLength={8}
                         value={otp}
                         onChangeText={setOtp}
                         autoFocus={true}
@@ -118,7 +124,7 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: theme.accent }]}
                         onPress={handleVerifyOTP}
-                        disabled={verifying || otp.length !== 6}
+                        disabled={verifying || otp.length !== 8}
                     >
                         {verifying ? (
                             <ActivityIndicator size="small" color="white" />
@@ -150,6 +156,7 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                 </View>
             </View>
         </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -200,8 +207,10 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 24,
         fontWeight: 'bold',
-        letterSpacing: 8,
+        letterSpacing: 4,
         textAlign: 'center',
+        height: '100%',
+        minHeight: 40,
     },
     actions: { gap: 12 },
     primaryButton: {

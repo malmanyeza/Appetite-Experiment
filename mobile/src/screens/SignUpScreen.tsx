@@ -9,9 +9,7 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
-    ScrollView,
-    Keyboard,
-    TouchableWithoutFeedback
+    ScrollView
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
@@ -115,22 +113,18 @@ export const SignUpScreen = ({ navigation }: any) => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
-            <ScrollView 
-                showsVerticalScrollIndicator={false} 
-                contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
-                keyboardShouldPersistTaps="handled"
-            >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={styles.content}>
-                        <TouchableOpacity
-                            style={styles.backButton}
-                            onPress={() => navigation.goBack()}
-                        >
-                            <ArrowLeft color={theme.text} size={24} />
-                        </TouchableOpacity>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}>
+                <View style={{ flex: 1 }} />
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => navigation.goBack()}
+                >
+                    <ArrowLeft color={theme.text} size={24} />
+                </TouchableOpacity>
 
                 <View style={styles.header}>
                     <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
@@ -147,7 +141,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                             value={name}
                             onChangeText={setName}
                             style={[styles.input, { color: theme.text }]}
-                            editable={!loading}
                         />
                     </View>
 
@@ -160,7 +153,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                             onChangeText={setPhone}
                             keyboardType="phone-pad"
                             style={[styles.input, { color: theme.text }]}
-                            editable={!loading}
                         />
                     </View>
 
@@ -174,7 +166,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                             autoCapitalize="none"
                             keyboardType="email-address"
                             style={[styles.input, { color: theme.text }]}
-                            editable={!loading}
                         />
                     </View>
 
@@ -187,7 +178,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                             onChangeText={setPassword}
                             secureTextEntry
                             style={[styles.input, { color: theme.text }]}
-                            editable={!loading}
                         />
                     </View>
 
@@ -220,7 +210,6 @@ export const SignUpScreen = ({ navigation }: any) => {
                             <Text style={styles.signUpButtonText}>Create Account</Text>
                         )}
                     </TouchableOpacity>
-
                     <View style={styles.footer}>
                         <Text style={[styles.footerText, { color: theme.textMuted }]}>Already have an account?</Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -228,16 +217,15 @@ export const SignUpScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </TouchableWithoutFeedback>
-        </ScrollView>
-    </KeyboardAvoidingView>
-);
+                <View style={{ flex: 1 }} />
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { flexGrow: 1, padding: 24 },
-    content: { padding: 0, marginTop: 40 },
+    scrollContent: { padding: 24 },
     backButton: {
         width: 44,
         height: 44,
@@ -272,7 +260,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         gap: 12,
     },
-    input: { flex: 1, fontSize: 16 },
+    input: { flex: 1, fontSize: 16, height: '100%', minHeight: 40 },
     signUpButton: {
         height: 60,
         borderRadius: 16,

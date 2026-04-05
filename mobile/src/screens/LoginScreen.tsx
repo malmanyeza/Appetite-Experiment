@@ -10,9 +10,7 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
-    ScrollView,
-    Keyboard,
-    TouchableWithoutFeedback
+    ScrollView
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
@@ -69,7 +67,8 @@ export const LoginScreen = ({ navigation }: any) => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
             <ScrollView 
@@ -77,9 +76,9 @@ export const LoginScreen = ({ navigation }: any) => {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
             >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={styles.content}>
-                        <View style={styles.header}>
+                <View style={{ flex: 1 }} />
+                <View style={styles.content}>
+                    <View style={styles.header}>
                         <View style={[styles.logoContainer, { backgroundColor: theme.accent }]}>
                             <LogIn color="white" size={32} />
                         </View>
@@ -100,7 +99,6 @@ export const LoginScreen = ({ navigation }: any) => {
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                                 style={[styles.input, { color: theme.text }]}
-                                editable={!loading}
                             />
                         </View>
 
@@ -113,7 +111,6 @@ export const LoginScreen = ({ navigation }: any) => {
                                 onChangeText={setPassword}
                                 secureTextEntry
                                 style={[styles.input, { color: theme.text }]}
-                                editable={!loading}
                             />
                         </View>
 
@@ -146,16 +143,16 @@ export const LoginScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </TouchableWithoutFeedback>
-        </ScrollView>
-    </KeyboardAvoidingView>
-);
+                <View style={{ flex: 1 }} />
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { flexGrow: 1, padding: 24 },
-    content: { padding: 0, marginTop: 40 },
+    scrollContent: { flexGrow: 1 },
+    content: { padding: 24 },
     header: { alignItems: 'center', marginBottom: 48 },
     logoContainer: {
         width: 80,
@@ -181,7 +178,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         gap: 12,
     },
-    input: { flex: 1, fontSize: 16 },
+    input: { flex: 1, fontSize: 16, height: '100%', minHeight: 40 },
     loginButton: {
         height: 60,
         borderRadius: 16,
