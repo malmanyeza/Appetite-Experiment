@@ -24,8 +24,14 @@ export const reverseGeocodeGoogle = async (lat: number, lng: number): Promise<Ge
                 /^[A-Z0-9]{4}\+[A-Z0-9]{2,3}/.test(text.trim()) || 
                 (text.includes('+') && text.split(' ').length === 1);
 
-            // Find best available result (skip ones that are primarily plus codes)
-            const bestResult = data.results.find((r: any) => 
+            // 1. Try to find a named area/landmark result first (better for bold labels)
+            const areaResult = data.results.find((r: any) => 
+                r.types.some((t: string) => 
+                    ['neighborhood', 'sublocality', 'park', 'point_of_interest', 'natural_feature', 'establishment'].includes(t)
+                )
+            );
+            
+            const bestResult = areaResult || data.results.find((r: any) => 
                 !r.types.includes('plus_code') && 
                 !isPlusCode(r.formatted_address.split(',')[0])
             ) || data.results[0];
@@ -61,8 +67,17 @@ export const reverseGeocodeGoogle = async (lat: number, lng: number): Promise<Ge
                     }
                 }
             });
+            
+            const cleanLabel = (text: string) => {
+                if (!text) return '';
+                // Strip leading house numbers (digits) followed by a space
+                // Example: "9636 Southlands Park" -> "Southlands Park"
+                // Example: "12A Main St" -> "Main St"
+                return text.replace(/^\d+[A-Z]?\s+/i, '').trim();
+            };
 
             city = locality || adminArea2 || 'Harare';
+
             // Preference: Street name -> Neighborhood -> Premise -> Locality (if not city)
             let finalSuburb = route || neighborhood || sublocality || premise || subpremise || (locality !== city ? locality : '');
             
@@ -74,6 +89,9 @@ export const reverseGeocodeGoogle = async (lat: number, lng: number): Promise<Ge
                     finalSuburb = firstPart;
                 }
             }
+
+            // CLEAN THE LABEL: Strip house numbers for the primary bold display
+            finalSuburb = cleanLabel(finalSuburb);
 
             if (!finalSuburb || isPlusCode(finalSuburb)) finalSuburb = 'Nearby';
             

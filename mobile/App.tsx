@@ -97,11 +97,8 @@ function App() {
             console.error('CRITICAL: Supabase client failed to initialize at the module level.');
         }
 
-        // Hide native splash screen once the JS components are ready to take over
-        const hideSplash = async () => {
-            await SplashScreen.hideAsync().catch(() => {});
-        };
-        hideSplash();
+        // Note: SplashScreen.hideAsync() is now handled below to ensure 
+        // there is NO gap between the native splash and our custom animation.
     }, []);
 
     // Initialize Push Notifications

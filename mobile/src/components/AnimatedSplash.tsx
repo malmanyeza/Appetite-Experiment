@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Dimensions, Easing, View, Platform } from 'react-native';
+import { Animated, StyleSheet, Dimensions, Easing, View, Platform, ImageBackground } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,6 +18,10 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
     const letterAnims = useRef(word.split('').map(() => new Animated.Value(0))).current;
 
     useEffect(() => {
+        // HIDE THE NATIVE SPLASH: Doing it here ensures there is zero gap
+        // between the static image and our animation.
+        import('expo-splash-screen').then(pkg => pkg.hideAsync().catch(() => {}));
+
         // Start the typography wave animation
         const animations = letterAnims.map((anim, index) => {
             return Animated.sequence([
@@ -79,21 +83,29 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
                 isFading && { elevation: 0, zIndex: 0 }
             ]}
         >
-            <View style={styles.textContainer}>
-                {word.split('').map((letter, index) => (
-                    <Animated.Text
-                        key={index}
-                        style={[
-                            styles.logoText,
-                            { transform: [{ translateY: letterAnims[index] }] }
-                        ]}
-                    >
-                        {letter}
-                    </Animated.Text>
-                ))}
-            </View>
+            <ImageBackground
+                source={require('../../assets/images/splash_bg.png')}
+                style={styles.backgroundImage}
+                resizeMode="cover"
+            >
+                {/* Subtle Overlay for typography contrast */}
+                <View style={styles.overlay}>
+                    <View style={styles.textContainer}>
+                        {word.split('').map((letter, index) => (
+                            <Animated.Text
+                                key={index}
+                                style={[
+                                    styles.logoText,
+                                    { transform: [{ translateY: letterAnims[index] }] }
+                                ]}
+                            >
+                                {letter}
+                            </Animated.Text>
+                        ))}
+                    </View>
+                </View>
+            </ImageBackground>
         </Animated.View>
-    );
 };
 
 const styles = StyleSheet.create({
@@ -108,12 +120,27 @@ const styles = StyleSheet.create({
     textContainer: {
         flexDirection: 'row',
     },
+    backgroundImage: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.1)', // Subtle 10% dark overlay for readability
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     logoText: {
         color: '#FFFFFF',
-        fontSize: 48,
+        fontSize: 56, // Slightly larger for impact over the background
         fontWeight: 'bold',
         letterSpacing: -1,
         // Platform-agnostic system font approach
-        fontFamily: Platform.OS === 'android' ? 'sans-serif-medium' : 'System'
+        fontFamily: Platform.OS === 'android' ? 'sans-serif-medium' : 'System',
+        textShadowColor: 'rgba(0, 0, 0, 0.4)', // Adds readability over the image
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10
     }
 });
