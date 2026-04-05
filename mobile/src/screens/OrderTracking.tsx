@@ -11,8 +11,10 @@ import {
     Animated,
     Dimensions,
     Modal,
-    Platform
+    Platform,
+    StatusBar
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import * as ExpoLocation from 'expo-location';
@@ -46,6 +48,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
     const { user } = useAuthStore();
     const { theme, isDark } = useTheme();
     const queryClient = useQueryClient();
+    const insets = useSafeAreaInsets();
     
     // Live tracking states
     const [driverLocation, setDriverLocation] = React.useState<any>(null);
@@ -60,7 +63,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
     const lastPosRef = React.useRef<{lat: number, lng: number} | null>(null);
 
     const mapRef = React.useRef<MapView | null>(null);
-    const slideAnim = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
+    const slideAnim = React.useRef(new Animated.Value(Dimensions.get('screen').height)).current;
 
     // In-App Calling States
     const [isCallModalVisible, setIsCallModalVisible] = React.useState(false);
@@ -708,7 +711,7 @@ export const OrderTracking = ({ route, navigation }: any) => {
 
                 {/* Floating Metrics + Navigate button for pickup */}
                 {(distance || duration) && (
-                    <View style={[styles.floatingMetrics, { backgroundColor: theme.surface }]}>
+                    <View style={[styles.floatingMetrics, { backgroundColor: theme.surface, paddingBottom: insets.bottom + 20 }]}>
                         <View style={styles.metricItem}>
                             <LocateFixed size={18} color={theme.accent} />
                             <Text style={[styles.metricText, { color: theme.text }]}>{distance}</Text>

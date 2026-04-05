@@ -183,16 +183,15 @@ export const CartScreen = ({ navigation }: any) => {
             try {
                 const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                 if (status === 'granted') {
-                    // Fast check for last known position
-                    const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
-                    // Use High Accuracy for initial position to prevent "Nearby" guesses
-                    const initialCoords = lastKnown?.coords || (await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High })).coords;
+                    // SECURE FIX: We now IGNORE lastKnown to prevent "neighbor house" jumping.
+                    // We force a brand-new, high-precision satellite lock.
+                    const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
                     
-                    setGpsLocation({ lat: initialCoords.latitude, lng: initialCoords.longitude });
+                    setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
                     
                     mapRef.current?.animateToRegion({
-                        latitude: initialCoords.latitude,
-                        longitude: initialCoords.longitude,
+                        latitude: loc.coords.latitude,
+                        longitude: loc.coords.longitude,
                         latitudeDelta: 0.01,
                         longitudeDelta: 0.01,
                     }, 600);
@@ -989,35 +988,10 @@ export const CartScreen = ({ navigation }: any) => {
                                             try {
                                                 const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                                                 if (status === 'granted') {
-                                                    // 1. Fast initial jump
-                                                    const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
                                                     if (currentRequestId !== gpsRequestCounter.current) return;
 
-                                                    if (lastKnown) {
-                                                        const fastRegion = {
-                                                            latitude: lastKnown.coords.latitude,
-                                                            longitude: lastKnown.coords.longitude,
-                                                            latitudeDelta: 0.005,
-                                                            longitudeDelta: 0.005,
-                                                        };
-                                                        isProgrammaticChange.current = true;
-                                                        mapRef.current?.animateToRegion(fastRegion, 100);
-
-                                                        const rev = await reverseGeocodeGoogle(lastKnown.coords.latitude, lastKnown.coords.longitude);
-                                                        if (rev) {
-                                                            const fastLoc = {
-                                                                city: rev.city || 'Harare',
-                                                                suburb: rev.suburb || 'Nearby',
-                                                                street: rev.physical_address || '',
-                                                                lat: lastKnown.coords.latitude,
-                                                                lng: lastKnown.coords.longitude
-                                                            };
-                                                            setSelectedAddress(fastLoc);
-                                                            // Clear button loading early
-                                                            setIsGpsButtonLoading(false);
-                                                        }
-                                                    }
-
+                                                    // DEEP LOCK: Skip lastKnown because it often contains neighbors' houses.
+                                                    // Go STRAIGHT to fresh high-accuracy satellite fix.
                                                     const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
                                                     if (currentRequestId !== gpsRequestCounter.current) return;
 

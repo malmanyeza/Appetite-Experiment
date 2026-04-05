@@ -15,8 +15,10 @@ import {
     TouchableWithoutFeedback,
     Keyboard,
     ScrollView,
-    Animated
+    Animated,
+    StatusBar
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from '../components/Map';
 import { MapSkeleton } from '../components/MapSkeleton';
 import { GooglePlacesAutocomplete } from '../components/GooglePlacesAutocomplete';
@@ -33,6 +35,7 @@ export const AddressManagementScreen = ({ navigation }: any) => {
     const { user } = useAuthStore();
     const { profile } = useAuthStore();
     const queryClient = useQueryClient();
+    const insets = useSafeAreaInsets();
     const [modalVisible, setModalVisible] = useState(false);
 
     // Form State
@@ -291,7 +294,12 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                 <Text style={styles.addButtonText}>Add New Address</Text>
             </TouchableOpacity>
 
-            <Modal visible={modalVisible} animationType="slide" transparent={false}>
+            <Modal 
+                visible={modalVisible} 
+                animationType="slide" 
+                transparent={false}
+                statusBarTranslucent={true}
+            >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={{ flex: 1, backgroundColor: theme.background }}>
                         <MapSkeleton visible={!isMapReady} />
@@ -301,7 +309,7 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                             provider={PROVIDER_GOOGLE}
                             style={StyleSheet.absoluteFillObject}
                             initialRegion={mapRegion}
-                            mapPadding={{ top: 0, right: 0, left: 0, bottom: Dimensions.get('window').height * 0.4 }}
+                            mapPadding={{ top: 0, right: 0, left: 0, bottom: Dimensions.get('screen').height * 0.4 }}
                             customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
                             onMapReady={() => setIsMapReady(true)}
                             onPress={() => {
@@ -477,7 +485,8 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                                     bottom: 0,
                                     left: 0,
                                     right: 0,
-                                    height: Dimensions.get('window').height * 0.65
+                                    height: Dimensions.get('screen').height * 0.65,
+                                    paddingBottom: insets.bottom + 24 // SEAL THE GAP
                                 }
                             ]}
                         >

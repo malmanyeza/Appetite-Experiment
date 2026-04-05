@@ -18,8 +18,10 @@ import {
     Dimensions,
     Animated,
     RefreshControl,
-    PanResponder
+    PanResponder,
+    StatusBar
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from '../components/Map';
 import { MapSkeleton } from '../components/MapSkeleton';
 import { GooglePlacesAutocomplete } from '../components/GooglePlacesAutocomplete';
@@ -46,6 +48,7 @@ const INITIAL_REGION = {
 export const CustomerHome = () => {
     const navigation = useNavigation<any>();
     const queryClient = useQueryClient();
+    const insets = useSafeAreaInsets();
     const { theme, isDark } = useTheme();
     const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -187,16 +190,15 @@ export const CustomerHome = () => {
             try {
                 const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                 if (status === 'granted') {
-                    // Fast check for last known position to reduce lag
-                    const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
-                    // Use High Accuracy for initial position to prevent "Nearby" guesses
-                    const initialCoords = lastKnown?.coords || (await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High })).coords;
+                    // SECURE FIX: We now IGNORE lastKnown to prevent "neighbor house" jumping.
+                    // We force a brand-new, high-precision satellite lock.
+                    const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
                     
-                    setGpsLocation({ lat: initialCoords.latitude, lng: initialCoords.longitude });
+                    setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
                     
                     mapRef.current?.animateToRegion({
-                        latitude: initialCoords.latitude,
-                        longitude: initialCoords.longitude,
+                        latitude: loc.coords.latitude,
+                        longitude: loc.coords.longitude,
                         latitudeDelta: 0.01,
                         longitudeDelta: 0.01,
                     }, 600);
@@ -643,7 +645,7 @@ export const CustomerHome = () => {
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <Animated.View 
                         style={{ 
-                            height: Dimensions.get('window').height,
+                            height: Dimensions.get('screen').height,
                             backgroundColor: theme.background,
                             transform: [{ translateY: modalEntryAnim }]
                         }}
@@ -880,11 +882,12 @@ export const CustomerHome = () => {
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
-                                height: Dimensions.get('window').height * 0.65,
+                                height: Dimensions.get('screen').height * 0.65,
                                 borderTopLeftRadius: 48, 
                                 borderTopRightRadius: 48, 
                                 backgroundColor: theme.background, 
                                 padding: 24,
+                                paddingBottom: insets.bottom + 24, // SEAL THE GAP
                                 transform: [{ translateY: modalY }],
                                 elevation: 15,
                                 shadowColor: '#000',
@@ -955,33 +958,11 @@ export const CustomerHome = () => {
                                                         // Check if still valid
                                                         if (currentRequestId !== gpsRequestCounter.current) return;
 
-                                                        if (lastKnown) {
-                                                            const rev = await reverseGeocodeGoogle(lastKnown.coords.latitude, lastKnown.coords.longitude);
-                                                            if (rev) {
-                                                                const fastLoc = {
-                                                                    label: 'Current Spot',
-                                                                    city: rev.city || 'Harare',
-                                                                    suburb: rev.suburb || 'Nearby',
-                                                                    street: rev.physical_address || '',
-                                                                    lat: lastKnown.coords.latitude,
-                                                                    lng: lastKnown.coords.longitude
-                                                                };
-                                                                setSelectedLocation(fastLoc);
-                                                                isProgrammaticChange.current = true;
-                                                                mapRef.current?.animateToRegion({
-                                                                    ...fastLoc,
-                                                                    latitude: fastLoc.lat,
-                                                                    longitude: fastLoc.lng,
-                                                                    latitudeDelta: 0.005,
-                                                                    longitudeDelta: 0.005,
-                                                                }, 100);
-                                                                
-                                                                // Clear button loading early once we have a locked 'Current Spot'
-                                                                setIsGpsButtonLoading(false);
-                                                                setIsFetchingLocation(false);
-                                                                showDoneButton();
-                                                            }
-                                                        }
+                                                        if (currentRequestId !== gpsRequestCounter.current) return;
+                                                        
+                                                        // DEEP LOCK: We now skip checking lastKnown because it often contains 
+                                                        // neighbors' houses from previous sessions.
+                                                        // We go STRAIGHT to High Accuracy Refinement.
 
                                                         // 2. High Accuracy Refinement
                                                         const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
@@ -1122,7 +1103,7 @@ export const CustomerHome = () => {
                                 <Animated.View 
                                     style={{ 
                                         position: 'absolute', 
-                                        bottom: 30, 
+                                        bottom: insets.bottom + 20, // ADJUST FOR ANDROID BAR
                                         left: 20, 
                                         right: 20,
                                         transform: [{ translateY: doneButtonAnim }]
@@ -1204,7 +1185,12 @@ const styles = StyleSheet.create({
     deliveryInfo: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
     infoText: { fontSize: 12 },
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-    modalContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, minHeight: 400 },
+    modalContent: { 
+        borderTopLeftRadius: 32, 
+        borderTopRightRadius: 32, 
+        padding: 24, 
+        minHeight: 400
+    },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     modalTitle: { fontSize: 20, fontWeight: 'bold' },
     modalSubtitle: { fontSize: 14, marginBottom: 24 },

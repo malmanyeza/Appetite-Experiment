@@ -16,8 +16,10 @@ import {
     Animated, 
     Dimensions,
     ActivityIndicator,
-    PanResponder
+    PanResponder,
+    StatusBar
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -56,6 +58,7 @@ export const ActiveDelivery = () => {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const queryClient = useQueryClient();
+    const insets = useSafeAreaInsets();
 
     const orderId = route.params?.orderId;
 
@@ -418,7 +421,8 @@ export const ActiveDelivery = () => {
                     styles.bottomSheet, 
                     { 
                         backgroundColor: theme.background,
-                        transform: [{ translateY: modalY }]
+                        transform: [{ translateY: modalY }],
+                        paddingBottom: insets.bottom + 24 // SEAL THE GAP
                     }
                 ]}
             >
@@ -553,7 +557,13 @@ export const ActiveDelivery = () => {
 
 
             {/* PIN Modal */}
-            <Modal visible={isPinModalVisible} transparent animationType="fade">
+            {/* PIN Verification Modal - Fixed for Android */}
+            <Modal 
+                visible={isPinModalVisible} 
+                transparent 
+                animationType="fade"
+                statusBarTranslucent={true}
+            >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.modalOverlayCentered}>
                         <KeyboardAvoidingView
@@ -562,7 +572,7 @@ export const ActiveDelivery = () => {
                             keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
                         >
                             <TouchableWithoutFeedback>
-                                <View style={[styles.modalContentCentered, { backgroundColor: theme.surface }]}>
+                                <View style={[styles.modalContentCentered, { backgroundColor: theme.surface, paddingBottom: insets.bottom + 40 }]}>
                                     <View style={{ alignItems: 'center', marginBottom: 8 }}>
                                         <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
                                     </View>

@@ -34,9 +34,6 @@ const HomeStack = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="HomeMain" component={CustomerHome} />
-            <Stack.Screen name="RestaurantDetails" component={RestaurantDetails} />
-            <Stack.Screen name="Cart" component={CartScreen} />
-            <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
         </Stack.Navigator>
     );
 };
@@ -49,7 +46,6 @@ const AccountStack = () => {
             <Stack.Screen name="DriverOnboarding" component={DriverOnboarding} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
-            <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
         </Stack.Navigator>
     );
 };
@@ -66,7 +62,6 @@ const OrdersStack = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="OrdersMain" component={OrdersScreen} />
-            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
         </Stack.Navigator>
     );
 };
@@ -101,8 +96,6 @@ const DriverJobsStack = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="JobsMain" component={DriverJobs} />
-            <Stack.Screen name="ActiveDelivery" component={ActiveDelivery} />
-            <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
         </Stack.Navigator>
     );
 };
@@ -137,13 +130,22 @@ export const RootNavigator = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             {user && !isSigningUp ? (
-                // Authenticated Stack: ONLY Dashboard screens
+                // Authenticated Stack: Dashboard screens + Full-screen Modals
                 <>
                     {activeRole === 'driver' ? (
                         <Stack.Screen name="DriverApp" component={DriverTabs} />
                     ) : (
                         <Stack.Screen name="CustomerApp" component={CustomerTabs} />
                     )}
+                    
+                    {/* Common Full-screen Overlay Screens */}
+                    <Stack.Screen name="RestaurantDetails" component={RestaurantDetails} />
+                    <Stack.Screen name="Cart" component={CartScreen} />
+                    <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
+                    <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+                    <Stack.Screen name="ActiveDelivery" component={ActiveDelivery} />
+                    <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
+                    <Stack.Screen name="OrderTracking" component={OrderTracking} />
                 </>
             ) : (
                 // Unauthenticated Stack
@@ -160,3 +162,4 @@ export const RootNavigator = () => {
         </Stack.Navigator>
     );
 };
+
