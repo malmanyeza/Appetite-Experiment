@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
-import { Mail, ArrowLeft, RefreshCcw, ExternalLink, CheckCircle } from 'lucide-react-native';
-import * as Linking from 'expo-linking';
+import { Mail, ArrowLeft, RefreshCcw, CheckCircle } from 'lucide-react-native';
 
 export const EmailVerificationScreen = ({ route, navigation }: any) => {
     const { email } = route.params || { email: 'your email' };
@@ -51,14 +50,6 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
         }
     };
 
-    const handleOpenMail = () => {
-        if (Platform.OS === 'ios') {
-            Linking.openURL('message://');
-        } else {
-            Linking.openURL('mailto:');
-        }
-    };
-
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={styles.content}>
@@ -88,21 +79,14 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                             Click the link in the email to verify your account
                         </Text>
                     </View>
-                    <View style={styles.instructionItem}>
-                        <CheckCircle size={18} color={theme.accent} />
-                        <Text style={[styles.instructionText, { color: theme.textMuted }]}>
-                            Check your spam folder if you don't see it
-                        </Text>
-                    </View>
                 </View>
 
                 <View style={styles.actions}>
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: theme.accent }]}
-                        onPress={handleOpenMail}
+                        onPress={() => navigation.navigate('Login')}
                     >
-                        <ExternalLink size={20} color="white" />
-                        <Text style={styles.primaryButtonText}>Open Email App</Text>
+                        <Text style={styles.primaryButtonText}>I've Verified, Sign In</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -120,21 +104,12 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                             <>
                                 <RefreshCcw size={18} color={theme.text} />
                                 <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
-                                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Verification Email'}
+                                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Email'}
                                 </Text>
                             </>
                         )}
                     </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity 
-                    style={styles.footerLink}
-                    onPress={() => navigation.navigate('Login')}
-                >
-                    <Text style={[styles.footerLinkText, { color: theme.textMuted }]}>
-                        Verified already? <Text style={{ color: theme.accent, fontWeight: 'bold' }}>Sign In</Text>
-                    </Text>
-                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );

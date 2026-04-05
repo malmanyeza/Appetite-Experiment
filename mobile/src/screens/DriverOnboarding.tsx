@@ -359,6 +359,51 @@ export const DriverOnboarding = ({ navigation }: any) => {
         </ScrollView>
     );
 
+    const renderPayout = () => (
+        <ScrollView style={styles.formContent} showsVerticalScrollIndicator={false}>
+            {renderHeader('Payout Details', 'Step 4 of 4: How you get paid')}
+
+            <View style={[styles.infoBanner, { backgroundColor: `${theme.accent}10`, marginBottom: 24 }]}>
+                <Text style={[styles.infoText, { color: theme.text }]}>
+                    Please provide your EcoCash details. We will use this information to send your earnings.
+                </Text>
+            </View>
+
+            <Text style={[styles.label, { color: theme.text }]}>EcoCash Registered Number</Text>
+            <View style={[styles.inputGroup, { backgroundColor: theme.surface }]}>
+                <Phone size={20} color={theme.textMuted} />
+                <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder="e.g. 0771234567"
+                    placeholderTextColor={theme.textMuted}
+                    value={ecocashNumber}
+                    onChangeText={setEcocashNumber}
+                    keyboardType="phone-pad"
+                />
+            </View>
+
+            <Text style={[styles.label, { color: theme.text, marginTop: 24 }]}>Registered Account Name</Text>
+            <View style={[styles.inputGroup, { backgroundColor: theme.surface }]}>
+                <User size={20} color={theme.textMuted} />
+                <TextInput
+                    style={[styles.input, { color: theme.text }]}
+                    placeholder="Name as it appears on EcoCash"
+                    placeholderTextColor={theme.textMuted}
+                    value={accountName}
+                    onChangeText={setAccountName}
+                />
+            </View>
+
+            <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.accent, marginTop: 40 }]}
+                onPress={handleSubmit}
+                disabled={loading}
+            >
+                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Submit Application</Text>}
+            </TouchableOpacity>
+        </ScrollView>
+    );
+
     const renderSuccess = () => (
         <View style={styles.fullCenter}>
             <View style={[styles.iconCircle, { backgroundColor: '#10B98115' }]}>

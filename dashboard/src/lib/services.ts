@@ -498,5 +498,34 @@ export const adminService = {
             activeDrivers: activeDrivers || 0,
             alerts
         };
+    },
+
+    async getPayoutRequests() {
+        const { data, error } = await supabase
+            .from('payouts')
+            .select(`
+                *,
+                profiles:driver_id (
+                    full_name,
+                    phone,
+                    driver_profiles (
+                        ecocash_number,
+                        account_name
+                    )
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data;
+    },
+
+    async updatePayoutStatus(payoutId: string, status: string) {
+        const { error } = await supabase
+            .from('payouts')
+            .update({ status })
+            .eq('id', payoutId);
+
+        if (error) throw error;
     }
 };

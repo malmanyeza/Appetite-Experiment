@@ -952,31 +952,46 @@ export const CustomerHome = () => {
                                                 try {
                                                     const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                                                     if (status === 'granted') {
-                                                        // 1. Fast fallback (Last Known Position)
+                                                        // 1. FAST INITIAL JUMP (Instant UI)
                                                         const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
-                                                        
-                                                        // Check if still valid
-                                                        if (currentRequestId !== gpsRequestCounter.current) return;
+                                                        if (lastKnown && currentRequestId === gpsRequestCounter.current) {
+                                                            isProgrammaticChange.current = true;
+                                                            mapRef.current?.animateToRegion({
+                                                                latitude: lastKnown.coords.latitude,
+                                                                longitude: lastKnown.coords.longitude,
+                                                                latitudeDelta: 0.005,
+                                                                longitudeDelta: 0.005,
+                                                            }, 200);
+                                                            
+                                                            const revFast = await reverseGeocodeGoogle(lastKnown.coords.latitude, lastKnown.coords.longitude);
+                                                            if (revFast && currentRequestId === gpsRequestCounter.current) {
+                                                                setSelectedLocation({
+                                                                    label: 'Current Spot',
+                                                                    city: revFast.city || 'Harare',
+                                                                    suburb: revFast.suburb || 'Nearby',
+                                                                    street: revFast.physical_address || '',
+                                                                    lat: lastKnown.coords.latitude,
+                                                                    lng: lastKnown.coords.longitude
+                                                                });
+                                                                showDoneButton();
+                                                                setIsGpsButtonLoading(false);
+                                                                setIsFetchingLocation(false);
+                                                            }
+                                                        }
 
-                                                        if (currentRequestId !== gpsRequestCounter.current) return;
-                                                        
-                                                        // DEEP LOCK: We now skip checking lastKnown because it often contains 
-                                                        // neighbors' houses from previous sessions.
-                                                        // We go STRAIGHT to High Accuracy Refinement.
-
-                                                        // 2. High Accuracy Refinement
-                                                        const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
+                                                        // 2. HIGH ACCURACY REFINEMENT (Fast but more precise than Balanced)
+                                                        const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
                                                         
                                                         // Check if still valid (user didn't move map manually during wait)
                                                         if (currentRequestId !== gpsRequestCounter.current) return;
-
+                                                        
                                                         isProgrammaticChange.current = true;
                                                         mapRef.current?.animateToRegion({
                                                             latitude: loc.coords.latitude,
                                                             longitude: loc.coords.longitude,
                                                             latitudeDelta: 0.005,
                                                             longitudeDelta: 0.005,
-                                                        }, 300);
+                                                        }, 500);
                                                         setHasAnimatedInitialLocation(true);
 
                                                         const revRefined = await reverseGeocodeGoogle(loc.coords.latitude, loc.coords.longitude);
@@ -994,6 +1009,8 @@ export const CustomerHome = () => {
                                                                 lng: loc.coords.longitude
                                                                 });
                                                             showDoneButton();
+                                                            setIsGpsButtonLoading(false);
+                                                            setIsFetchingLocation(false);
                                                         }
                                                     } else {
                                                         Alert.alert('Permission Denied', 'Location permission is required.');

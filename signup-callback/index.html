@@ -103,20 +103,21 @@
     </div>
 
     <script>
-        // Extract the full fragment (hash) from the URL
+        // Extract the search parameters AND the fragment (hash)
+        const search = window.location.search;
         const hash = window.location.hash;
         
-        // Use the Appetite custom scheme for sign-up callback
-        const deepLink = "appetite://signup-callback" + hash;
+        // Priorities search parameters (modern PKCE code) then hash
+        const deepLink = "appetite://signup-callback" + (search || hash || "");
         
         // Update the manual button just in case
         const btn = document.getElementById('manual-btn');
         btn.href = deepLink;
 
         function attemptRedirect() {
-            // For signup, if there's no hash it might be a valid direct hit or error
-            if (!hash || hash.length < 10) {
-                console.log("No hash detected, showing manual button as fallback.");
+            // For signup, if there's no hash or search it might be a valid direct hit or error
+            if (!search && (!hash || hash.length < 10)) {
+                console.log("No auth parameters detected, showing manual button as fallback.");
             }
 
             console.log("Attempting redirect to:", deepLink);

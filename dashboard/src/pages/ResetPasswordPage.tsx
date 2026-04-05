@@ -1,7 +1,9 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Lock, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Lock, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 export const ResetPasswordPage = () => {
     const [password, setPassword] = React.useState('');
@@ -11,6 +13,23 @@ export const ResetPasswordPage = () => {
     const [loading, setLoading] = React.useState(false);
     const { updatePassword } = useAuthStore();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const [initializing, setInitializing] = React.useState(true);
+
+    React.useEffect(() => {
+        const handleSession = async () => {
+            const code = searchParams.get('code');
+            if (code) {
+                try {
+                    await supabase.auth.exchangeCodeForSession(code);
+                } catch (err) {
+                    console.error('Session exchange error:', err);
+                }
+            }
+            setInitializing(false);
+        };
+        handleSession();
+    }, [searchParams]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,6 +56,19 @@ export const ResetPasswordPage = () => {
             setLoading(false);
         }
     };
+
+    if (initializing) {
+        return (
+            <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center p-6 text-center">
+                <div className="w-full max-w-md glass p-10 space-y-6 animate-in fade-in zoom-in duration-500">
+                    <div className="w-20 h-20 bg-white/5 rounded-3xl mx-auto flex items-center justify-center border border-white/10">
+                        <Loader2 className="text-[#FF4D00] animate-spin" size={40} />
+                    </div>
+                    <h1 className="text-2xl font-bold text-white">Initializing...</h1>
+                </div>
+            </div>
+        );
+    }
 
     if (success) {
         return (

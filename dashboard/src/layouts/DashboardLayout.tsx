@@ -15,7 +15,8 @@ import {
     User,
     Navigation,
     Menu,
-    X
+    X,
+    Wallet
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { clsx, type ClassValue } from 'clsx';
@@ -118,6 +119,23 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
                     }
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'payouts'
+                },
+                (payload) => {
+                    queryClient.invalidateQueries({ queryKey: ['admin-payouts'] });
+                    
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                    audio.play().catch(e => console.warn('Audio play failed:', e));
+                    
+                    const newPayout = payload.new as any;
+                    addNotification(`New Payout Request: $${Number(newPayout.amount).toFixed(2)}`);
+                }
+            )
             .subscribe();
 
         return () => {
@@ -135,6 +153,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         { to: '/admin/orders', icon: Bell, label: 'Global Orders' },
         { to: '/admin/restaurants', icon: Utensils, label: 'Restaurants' },
         { to: '/admin/drivers', icon: Bike, label: 'Drivers' },
+        { to: '/admin/payouts', icon: Wallet, label: 'Payout Requests' },
         { to: '/admin/dispatch', icon: Navigation, label: 'Dispatch Control' },
         { to: '/admin/config', icon: Settings, label: 'App Config' },
     ];

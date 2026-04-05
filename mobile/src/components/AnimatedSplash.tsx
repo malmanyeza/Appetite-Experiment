@@ -106,6 +106,7 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
                 </View>
             </ImageBackground>
         </Animated.View>
+    );
 };
 
 const styles = StyleSheet.create({

@@ -114,7 +114,7 @@ export const reverseGeocodeGoogle = async (lat: number, lng: number): Promise<Ge
             return {
                 city,
                 suburb,
-                physical_address: cleanAddress
+                physical_address: cleanLabel(cleanAddress)
             };
         }
         

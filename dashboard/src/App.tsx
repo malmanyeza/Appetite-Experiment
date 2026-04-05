@@ -17,7 +17,9 @@ import { AdminDrivers } from './pages/AdminDrivers';
 import { AdminDispatch } from './pages/AdminDispatch';
 import { AdminConfig } from './pages/AdminConfig';
 import { AdminMassMenuScanner } from './pages/AdminMassMenuScanner';
+import { AdminPayouts } from './pages/AdminPayouts';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { ConfirmSignupPage } from './pages/ConfirmSignupPage';
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
     const { user, currentRole, loading, initialized, refreshSession } = useAuthStore();
@@ -62,6 +64,8 @@ function App() {
             <HashRouter>
                 <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/confirm-signup" element={<ConfirmSignupPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                     <Route path="/restaurant/*" element={
                         <ProtectedRoute allowedRoles={['restaurant', 'admin']}>
@@ -90,6 +94,7 @@ function App() {
                                     <Route path="restaurants/:id/menu" element={<RestaurantMenu />} />
                                     <Route path="restaurants/:id/settings" element={<RestaurantSettings />} />
                                     <Route path="drivers" element={<AdminDrivers />} />
+                                    <Route path="payouts" element={<AdminPayouts />} />
                                     <Route path="dispatch" element={<AdminDispatch />} />
                                     <Route path="config" element={<AdminConfig />} />
                                     <Route path="*" element={<Navigate to="" replace />} />

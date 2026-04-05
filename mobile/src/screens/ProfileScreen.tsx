@@ -14,17 +14,39 @@ import {
 import { useTheme } from '../theme';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
-import { User, Phone, Save, ChevronLeft } from 'lucide-react-native';
+import { User, Phone, Save, ChevronLeft, CreditCard } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 export const ProfileScreen = ({ navigation }: any) => {
     const { theme } = useTheme();
-    const { profile, user, refreshProfile } = useAuthStore();
+    const { profile, user, roles, refreshProfile } = useAuthStore();
     const queryClient = useQueryClient();
+    const isDriver = roles.includes('driver');
 
     const [fullName, setFullName] = useState(profile?.full_name || '');
     const [phone, setPhone] = useState(profile?.phone || '');
+    const [ecocashNumber, setEcocashNumber] = useState('');
+    const [accountName, setAccountName] = useState('');
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (isDriver) {
+            fetchDriverDetails();
+        }
+    }, [isDriver]);
+
+    const fetchDriverDetails = async () => {
+        const { data, error } = await supabase
+            .from('driver_profiles')
+            .select('ecocash_number, account_name')
+            .eq('user_id', user?.id)
+            .single();
+        if (data) {
+            setEcocashNumber(data.ecocash_number || '');
+            setAccountName(data.account_name || '');
+        }
+    };
 
     const handleSave = async () => {
         if (!fullName.trim()) {
@@ -43,6 +65,17 @@ export const ProfileScreen = ({ navigation }: any) => {
                 .eq('id', user?.id);
 
             if (error) throw error;
+
+            if (isDriver) {
+                const { error: driverError } = await supabase
+                    .from('driver_profiles')
+                    .update({
+                        ecocash_number: ecocashNumber,
+                        account_name: accountName
+                    })
+                    .eq('user_id', user?.id);
+                if (driverError) throw driverError;
+            }
 
             await refreshProfile();
             Alert.alert('Success', 'Profile updated successfully', [
@@ -110,6 +143,43 @@ export const ProfileScreen = ({ navigation }: any) => {
                     <Text style={[styles.hint, { color: theme.textMuted }]}>Email cannot be changed</Text>
                 </View>
 
+                {isDriver && (
+                    <>
+                        <View style={styles.sectionHeader}>
+                            <Text style={[styles.sectionTitle, { color: theme.accent }]}>PAYOUT DETAILS (ECOCASH)</Text>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: theme.textMuted }]}>ECOCASH NUMBER</Text>
+                            <View style={[styles.inputWrapper, { backgroundColor: theme.surface }]}>
+                                <CreditCard size={20} color={theme.textMuted} />
+                                <TextInput
+                                    style={[styles.input, { color: theme.text }]}
+                                    value={ecocashNumber}
+                                    onChangeText={setEcocashNumber}
+                                    placeholder="077..."
+                                    placeholderTextColor={theme.textMuted}
+                                    keyboardType="phone-pad"
+                                />
+                            </View>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: theme.textMuted }]}>ECOCASH ACCOUNT NAME</Text>
+                            <View style={[styles.inputWrapper, { backgroundColor: theme.surface }]}>
+                                <User size={20} color={theme.textMuted} />
+                                <TextInput
+                                    style={[styles.input, { color: theme.text }]}
+                                    value={accountName}
+                                    onChangeText={setAccountName}
+                                    placeholder="Account Name"
+                                    placeholderTextColor={theme.textMuted}
+                                />
+                            </View>
+                        </View>
+                    </>
+                )}
+
                 <TouchableOpacity
                     style={[styles.saveButton, { backgroundColor: theme.accent }]}
                     onPress={handleSave}
@@ -143,6 +213,8 @@ const styles = StyleSheet.create({
     content: { padding: 20 },
     inputContainer: { marginBottom: 24 },
     label: { fontSize: 12, fontWeight: 'bold', marginBottom: 8, letterSpacing: 1 },
+    sectionHeader: { marginTop: 8, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 8 },
+    sectionTitle: { fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
