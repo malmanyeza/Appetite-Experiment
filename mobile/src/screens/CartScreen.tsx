@@ -185,7 +185,8 @@ export const CartScreen = ({ navigation }: any) => {
                 if (status === 'granted') {
                     // Fast check for last known position
                     const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
-                    const initialCoords = lastKnown?.coords || (await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced })).coords;
+                    // Use High Accuracy for initial position to prevent "Nearby" guesses
+                    const initialCoords = lastKnown?.coords || (await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High })).coords;
                     
                     setGpsLocation({ lat: initialCoords.latitude, lng: initialCoords.longitude });
                     
