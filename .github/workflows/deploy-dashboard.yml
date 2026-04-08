@@ -23,6 +23,7 @@ jobs:
           # Manually copy the root files into the build folder
           cp ../index.html ./dist/
           cp ../privacy_policy.html ./dist/
+          cp ../terms_of_service.html ./dist/
           cp ../support.html ./dist/
           cp -r ../reset-password ./dist/
           cp -r ../signup-callback ./dist/

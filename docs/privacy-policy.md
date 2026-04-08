@@ -32,4 +32,7 @@ You have the right to access, modify, or delete your personal data.
 You can permanently delete your account and all associated data directly within the Appetite app by navigating to **Account > Delete Account**.
 
 ## 5. Contact Us
-If you have any questions about this Privacy Policy, please contact us at malmanyeza@gmail.com.
+If you have any questions about this Privacy Policy, please contact us at:
+- Malvern Manyeza: mmanyeza@nexura.co.zw
+- Nokutenda Manyeza: nmanyeza@nexura.co.zw
+- Fortune James Nyokanhete: fnyokanhete@nexura.co.zw

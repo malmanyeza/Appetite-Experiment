@@ -33,3 +33,9 @@ Appetite is not liable for indirect, incidental, or consequential damages arisin
 
 ## 6. Modifications
 We reserve the right to modify these terms at any time. Continued use of the app constitutes acceptance of the modified terms.
+
+## 7. Contact Us
+If you have any questions about these Terms of Service, please contact us at:
+- Malvern Manyeza: mmanyeza@nexura.co.zw
+- Nokutenda Manyeza: nmanyeza@nexura.co.zw
+- Fortune James Nyokanhete: fnyokanhete@nexura.co.zw
