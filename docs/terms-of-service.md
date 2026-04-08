@@ -36,6 +36,5 @@ We reserve the right to modify these terms at any time. Continued use of the app
 
 ## 7. Contact Us
 If you have any questions about these Terms of Service, please contact us at:
-- Malvern Manyeza: mmanyeza@nexura.co.zw
-- Nokutenda Manyeza: nmanyeza@nexura.co.zw
-- Fortune James Nyokanhete: fnyokanhete@nexura.co.zw
+- General Support: support@nexura.co.zw
+- Appetite Inquiries: appetite@nexura.co.zw

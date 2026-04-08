@@ -33,6 +33,5 @@ You can permanently delete your account and all associated data directly within 
 
 ## 5. Contact Us
 If you have any questions about this Privacy Policy, please contact us at:
-- Malvern Manyeza: mmanyeza@nexura.co.zw
-- Nokutenda Manyeza: nmanyeza@nexura.co.zw
-- Fortune James Nyokanhete: fnyokanhete@nexura.co.zw
+- General Support: support@nexura.co.zw
+- Appetite Inquiries: appetite@nexura.co.zw
