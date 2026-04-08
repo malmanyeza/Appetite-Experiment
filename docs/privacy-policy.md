@@ -21,11 +21,11 @@ Welcome to Appetite! Your privacy is critically important to us. This Privacy Po
 - To verify the identity of our delivery drivers.
 - To communicate with you regarding your orders or account security.
 
-## 3. Data Sharing
-We do not sell your personal data. We only share information with:
-- **Restaurants:** To prepare your order.
-- **Drivers:** To deliver your order (limited to delivery address and phone number).
-- **Service Providers:** Cloud hosting (Supabase) and mapping services required to run the app.
+## 3. Data Sharing as a Purchasing Agent
+Appetite does not sell your personal data. However, as your **Purchasing Agent**, we must share specific information with third parties to execute your commission:
+-   **Restaurants**: To prepare your order, we share your first name and order details.
+-   **Delivery Partners**: To fulfill the delivery, we share your name, phone number, and delivery location.
+-   **Service Providers**: We share data with payment processors and mapping services required to run the platform.
 
 ## 4. Your Rights and Account Deletion
 You have the right to access, modify, or delete your personal data. 

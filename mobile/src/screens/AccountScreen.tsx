@@ -83,7 +83,14 @@ export const AccountScreen = ({ navigation }: any) => {
             return;
         }
 
+        // Fast path: if they already have the driver role, switch immediately without network lookup
+        if (roles.includes('driver')) {
+            setActiveRole('driver');
+            return;
+        }
+
         try {
+            // They don't have the role locally, check their driver_profiles status
             const { data: driverProfile, error } = await supabase
                 .from('driver_profiles')
                 .select('*')
@@ -92,14 +99,6 @@ export const AccountScreen = ({ navigation }: any) => {
 
             if (error) {
                 if (error.code === 'PGRST116') {
-                    if (roles.includes('driver')) {
-                        Alert.alert(
-                            'Driver Setup Required',
-                            'Your driver account needs additional details.',
-                            [{ text: 'Setup Now', onPress: () => navigation.navigate('DriverOnboarding') }]
-                        );
-                        return;
-                    }
                     navigation.navigate('DriverOnboarding');
                     return;
                 }
@@ -124,8 +123,10 @@ export const AccountScreen = ({ navigation }: any) => {
                 return;
             }
 
-            // If approved, enforce active tab switch
-            if (!roles.includes('driver')) {
+            // If approved but role is missing, fetch fresh roles from server seamlessly
+            await useAuthStore.getState().refreshSession();
+            
+            if (!useAuthStore.getState().roles.includes('driver')) {
                 Alert.alert('Notice', 'You have been approved! Please restart your app to sync permissions.');
                 return;
             }
@@ -210,7 +211,7 @@ export const AccountScreen = ({ navigation }: any) => {
                 <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>More</Text>
                 <View style={[styles.menuContainer, { backgroundColor: theme.surface }]}>
                     <MenuItem icon={Share2} label="Invite Friends" onPress={handleShare} />
-                    <MenuItem icon={HelpCircle} label="Help & Support" onPress={() => { }} />
+                    <MenuItem icon={HelpCircle} label="Help & Support" onPress={() => navigation.navigate('HelpSupport')} />
                     <MenuItem icon={FileText} label="Terms of Service" onPress={() => navigation.navigate('TermsOfService')} />
                     <MenuItem icon={FileText} label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy')} showBorder={false} />
                 </View>

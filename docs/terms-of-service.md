@@ -17,10 +17,11 @@ By creating an account and using Appetite, you agree to be bound by these Terms 
 - You are responsible for maintaining the security of your account credentials.
 - Appetite reserves the right to suspend or terminate accounts that violate these terms or engage in fraudulent activity.
 
-## 3. Ordering and Delivery
-- Appetite acts as an intermediary between you, independent restaurants, and independent delivery drivers.
-- Delivery times are estimates and may vary based on traffic, weather, and restaurant preparation times.
-- All sales are final once an order is confirmed by the restaurant.
+## 3. Appetite as a Purchasing Agent
+-   **Agency Relationship**: By using Appetite, you explicitly appoint Appetite and its delivery partners as your personal **Purchasing Agents**. We are commissioned by you to acquire, pay for, and deliver food and beverages from third-party restaurants on your behalf.
+-   **No Reselling**: Appetite does not prepare, manufacture, or resell food. We act solely as your representative to facilitate the transaction between you and the restaurant.
+-   **Estimated Times**: Delivery times are estimates and may vary based on traffic, weather, and restaurant preparation times.
+-   **Final Sales**: All sales are final once an order is confirmed by the restaurant and the agent has initiated the purchase.
 
 ## 4. Driver Obligations (For Delivery Partners)
 - Drivers must maintain valid licenses, insurance, and vehicle registration.

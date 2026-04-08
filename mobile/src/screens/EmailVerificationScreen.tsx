@@ -107,7 +107,6 @@ export const EmailVerificationScreen = ({ route, navigation }: any) => {
                 </View>
 
                 <View style={[styles.inputContainer, { backgroundColor: theme.surface }]}>
-                    <Smartphone size={20} color={theme.textMuted} />
                     <TextInput
                         style={[styles.otpInput, { color: theme.text }]}
                         placeholder="000000"

@@ -176,6 +176,7 @@ export const CustomerHome = () => {
         (async () => {
             // 1. Priority: Selected Location (Saved Address)
             if (selectedLocation?.lat && selectedLocation?.lng) {
+                isProgrammaticChange.current = true;
                 mapRef.current?.animateToRegion({
                     latitude: selectedLocation.lat,
                     longitude: selectedLocation.lng,
@@ -196,6 +197,7 @@ export const CustomerHome = () => {
                     
                     setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
                     
+                    isProgrammaticChange.current = true;
                     mapRef.current?.animateToRegion({
                         latitude: loc.coords.latitude,
                         longitude: loc.coords.longitude,
@@ -235,7 +237,7 @@ export const CustomerHome = () => {
             
             const { data, error } = await supabase
                 .from('addresses')
-                .select('*')
+                .select('id, label, city, suburb, street, lat, lng, is_default')
                 .eq('user_id', profile?.id)
                 .eq('is_default', true)
                 .single();
@@ -276,15 +278,19 @@ export const CustomerHome = () => {
 
     // 3. Fetch saved addresses for the modal
 
-    const { data: savedAddresses } = useQuery({
+    const { data: savedAddresses, isLoading: isAddressesLoading } = useQuery({
         queryKey: ['user_addresses', profile?.id],
         queryFn: async () => {
+            if (!profile?.id) return [];
             const { data, error } = await supabase
                 .from('addresses')
-                .select('*')
+                .select('id, label, city, suburb, street, lat, lng, is_default')
                 .eq('user_id', profile?.id)
                 .order('is_default', { ascending: false });
-            if (error) throw error;
+            if (error) {
+                console.warn('Address Fetch Error:', error);
+                return [];
+            }
             return data || [];
         },
         enabled: !!profile?.id
@@ -347,6 +353,9 @@ export const CustomerHome = () => {
     // 5. Modal Animation Control -- Monitors visibility changes (Auto or Manual)
     React.useEffect(() => {
         if (locationModalVisible) {
+            // Strictly enforce UP position on every load 
+            modalY.setValue(0);
+            setIsModalDown(false);
             // Ensure map points to relevant context before showing
             // Only auto-center if we haven't already interacted/animated
             if (gpsLocation && !selectedLocation && !hasAnimatedInitialLocation) {
@@ -357,13 +366,14 @@ export const CustomerHome = () => {
                     longitudeDelta: 0.01,
                 };
                 setMapRegion(region);
+                isProgrammaticChange.current = true;
                 mapRef.current?.animateToRegion(region, 500);
             }
 
             // Super smooth decelerating animation
             // Speed logic: Auto-start is slow (2.5s), Manual is snappy (400ms)
             modalEntryAnim.stopAnimation((value) => {
-                const targetDuration = isAutoTrigger ? 2500 : 400;
+                const targetDuration = isAutoTrigger ? 800 : 400;
                 if (value > 0) {
                     Animated.timing(modalEntryAnim, {
                         toValue: 0,
@@ -373,9 +383,19 @@ export const CustomerHome = () => {
                     }).start();
                 }
             });
+
+            // FORCE-WAKE HEARTBEAT: If map hasn't ready-ed in 3s, force it!
+            const timer = setTimeout(() => {
+                if (locationModalVisible) {
+                    setIsMapReady(true);
+                }
+            }, 3000);
+
+            return () => clearTimeout(timer);
         } else {
             // Ensure off-screen when hidden
             modalEntryAnim.setValue(Dimensions.get('window').height);
+            setIsMapReady(false); // Reset for next time
         }
     }, [locationModalVisible, modalEntryAnim, isAutoTrigger]);
 
@@ -646,7 +666,7 @@ export const CustomerHome = () => {
                     <Animated.View 
                         style={{ 
                             height: Dimensions.get('screen').height,
-                            backgroundColor: theme.background,
+                            backgroundColor: 'transparent',
                             transform: [{ translateY: modalEntryAnim }]
                         }}
                     >
@@ -654,11 +674,11 @@ export const CustomerHome = () => {
                         {/* Full Screen Map */}
                         <MapView
                             ref={mapRef}
-                            provider={PROVIDER_GOOGLE}
+                            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                             style={StyleSheet.absoluteFillObject}
                             initialRegion={mapRegion}
                             mapPadding={{ top: 0, right: 0, left: 0, bottom: Dimensions.get('window').height * 0.4 }}
-                            customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
+                            customMapStyle={Platform.OS === 'android' ? (isDark ? mapDarkStyle : mapLightStyle) : undefined}
                             onMapReady={() => setIsMapReady(true)}
                             onPress={() => {
                                 Keyboard.dismiss();
@@ -667,27 +687,33 @@ export const CustomerHome = () => {
                                     setIsModalDown(true);
                                 }
                             }}
-                            onRegionChangeStart={() => {
+                            onRegionChangeStart={(_region, details) => {
                                 Keyboard.dismiss();
+                                // isGesture is supplied by react-native-maps (mostly reliable on iOS)
+                                const isHumanGesture = details ? details.isGesture : !isProgrammaticChange.current;
+                                
                                 // Only raise pin for manual gestures, not automated ones
-                                if (!isProgrammaticChange.current) {
+                                if (isHumanGesture) {
                                     Animated.spring(pinAnim, { toValue: -15, useNativeDriver: true }).start();
                                     // Manual gesture cancels any pending programmatic GPS snaps
                                     gpsRequestCounter.current += 1;
-                                }
-                                // Internal state for 'Locating...' text, doesn't spin the main button
-                                setIsFetchingLocation(true);
-                                // Prevent any auto-panning from fighting with this manual gesture
-                                setHasAnimatedInitialLocation(true);
                                 
-                                // Only slide sheet down if we haven't locked a selection AND it's not a programmatic move
-                                if (!isLocationSelected && !isProgrammaticChange.current && !isModalDown) {
-                                    animateModal(DOWN_VALUE);
-                                    setIsModalDown(true);
+                                    // Internal state for 'Locating...' text, doesn't spin the main button
+                                    setIsFetchingLocation(true);
+                                    // Prevent any auto-panning from fighting with this manual gesture
+                                    setHasAnimatedInitialLocation(true);
+                                    
+                                    // Only slide sheet down if we haven't locked a selection AND it's not a programmatic move
+                                    if (!isLocationSelected && !isModalDown) {
+                                        animateModal(DOWN_VALUE);
+                                        setIsModalDown(true);
+                                    }
                                 }
                             }}
-                            onRegionChangeComplete={async (region) => {
-                                if (isProgrammaticChange.current) {
+                            onRegionChangeComplete={async (region, details) => {
+                                const isHumanGesture = details ? details.isGesture : !isProgrammaticChange.current;
+                                
+                                if (!isHumanGesture || isProgrammaticChange.current) {
                                     isProgrammaticChange.current = false;
                                     Animated.spring(pinAnim, { toValue: 0, useNativeDriver: true }).start();
                                     return;
@@ -751,7 +777,7 @@ export const CustomerHome = () => {
                         </View>
 
 
-                        <View style={{ position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={{ position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 2000, elevation: 2000 }}>
                             <TouchableOpacity
                                 onPress={closeLocationModal}
                                 style={{
@@ -889,6 +915,7 @@ export const CustomerHome = () => {
                                 padding: 24,
                                 paddingBottom: insets.bottom + 24, // SEAL THE GAP
                                 transform: [{ translateY: modalY }],
+                                zIndex: 50,
                                 elevation: 15,
                                 shadowColor: '#000',
                                 shadowOffset: { width: 0, height: -4 },
@@ -1123,6 +1150,7 @@ export const CustomerHome = () => {
                                         bottom: insets.bottom + 20, // ADJUST FOR ANDROID BAR
                                         left: 20, 
                                         right: 20,
+                                        zIndex: 60,
                                         transform: [{ translateY: doneButtonAnim }]
                                     }}
                                 >
@@ -1244,7 +1272,8 @@ const styles = StyleSheet.create({
         marginLeft: -15,
         alignItems: 'center',
         justifyContent: 'flex-end',
-        zIndex: 5
+        zIndex: 1000,
+        elevation: 1000
     },
     pinShadow: {
         width: 12,

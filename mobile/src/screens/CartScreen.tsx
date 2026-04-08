@@ -52,7 +52,7 @@ export const CartScreen = ({ navigation }: any) => {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('addresses')
-                .select('*')
+                .select('id, label, city, suburb, street, lat, lng, is_default')
                 .eq('user_id', profile?.id)
                 .order('is_default', { ascending: false });
             if (error) throw error;
@@ -365,7 +365,14 @@ export const CartScreen = ({ navigation }: any) => {
                         landmark_notes: selectedAddress.landmark_notes,
                         lat: selectedAddress.lat,
                         lng: selectedAddress.lng
-                    } : null,
+                    } : {
+                        label: 'Pickup in Store',
+                        city: selectedAddress?.city || 'Harare',
+                        suburb: 'Pickup Center',
+                        street: 'Store Location',
+                        lat: -17.8252,
+                        lng: 31.0335
+                    },
                     paymentMethod,
                     fulfillmentType,
                     restaurantId: items[0].restaurant_id,
@@ -565,7 +572,12 @@ export const CartScreen = ({ navigation }: any) => {
                         <View style={styles.itemsSection}>
                             {items.map((item) => (
                                 <View key={item.id} style={[styles.cartItem, { borderBottomColor: theme.border }]}>
-                                    <Image source={item.image_url} style={styles.itemImage} contentFit="cover" />
+                                    <Image 
+                                        source={item.image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'} 
+                                        style={styles.itemImage} 
+                                        contentFit="cover" 
+                                        cachePolicy="disk"
+                                    />
                                     <View style={styles.itemInfo}>
                                         <Text style={[styles.itemName, { color: theme.text }]}>{item.name}</Text>
                                         {item.selected_add_ons?.length > 0 && (
@@ -754,7 +766,7 @@ export const CartScreen = ({ navigation }: any) => {
                         {/* Full Screen Map */}
                         <MapView
                             ref={mapRef}
-                            provider={PROVIDER_GOOGLE}
+                            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                             style={StyleSheet.absoluteFillObject}
                             initialRegion={mapRegion || {
                                 latitude: selectedAddress?.lat || -17.8248,
@@ -763,7 +775,7 @@ export const CartScreen = ({ navigation }: any) => {
                                 longitudeDelta: 0.05,
                             }}
                             mapPadding={{ top: 0, right: 0, left: 0, bottom: Dimensions.get('window').height * 0.4 }}
-                            customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
+                            customMapStyle={Platform.OS === 'android' ? (isDark ? mapDarkStyle : mapLightStyle) : undefined}
                             onMapReady={() => setIsMapReady(true)}
                             onPress={() => {
                                 Keyboard.dismiss();

@@ -11,7 +11,7 @@ import { useAuthStore } from '../store/authStore';
  * and switches them to the 'driver' dashboard immediately.
  */
 export const useApprovalListener = () => {
-    const { user, refreshSession, setActiveRole, activeRole } = useAuthStore();
+    const { user, refreshSession, setActiveRole, activeRole, roles } = useAuthStore();
 
     useEffect(() => {
         if (!user?.id || !supabase) return;
@@ -35,7 +35,8 @@ export const useApprovalListener = () => {
                     const status = payload.new?.status;
                     console.log(`[ApprovalListener] Status update detected: ${status}`);
 
-                    if (status === 'approved') {
+                    // Only trigger the onboarding switch if they weren't already approved as a driver
+                    if (status === 'approved' && !roles.includes('driver')) {
                         console.log('[ApprovalListener] Driver approved! Syncing permissions and switching roles...');
                         
                         // 1-second delay to ensure backend user_roles update has finished

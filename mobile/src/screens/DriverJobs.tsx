@@ -10,8 +10,11 @@ import {
     Linking,
     RefreshControl,
     Alert,
-    Image
+    Modal,
+    Animated
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as ExpoLocation from 'expo-location';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -29,6 +32,44 @@ export const DriverJobs = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [locationSubscription, setLocationSubscription] = useState<ExpoLocation.LocationSubscription | null>(null);
+
+    const [showWelcome, setShowWelcome] = useState(false);
+    const fadeAnim = useState(new Animated.Value(0))[0];
+    const scaleAnim = useState(new Animated.Value(0.8))[0];
+
+    useEffect(() => {
+        const checkFirstVisit = async () => {
+            if (user?.id) {
+                const key = `@driver_welcome_v1_${user.id}`;
+                const hasSeen = await AsyncStorage.getItem(key);
+                if (!hasSeen) {
+                    setShowWelcome(true);
+                    Animated.parallel([
+                        Animated.timing(fadeAnim, {
+                            toValue: 1,
+                            duration: 600,
+                            useNativeDriver: true,
+                        }),
+                        Animated.spring(scaleAnim, {
+                            toValue: 1,
+                            friction: 4,
+                            useNativeDriver: true,
+                        })
+                    ]).start();
+                    await AsyncStorage.setItem(key, 'true');
+                }
+            }
+        };
+        checkFirstVisit();
+    }, [user?.id]);
+
+    const closeWelcome = () => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+        }).start(() => setShowWelcome(false));
+    };
 
     // Fetch Dynamic Payout Settings
     const { data: deliveryConfig } = useQuery({
@@ -210,9 +251,7 @@ export const DriverJobs = () => {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('targeted_driver_jobs')
-                .select('*')
-                .eq('offer_assigned_driver_id', user?.id)
-                .order('offer_created_at', { ascending: false });
+                .select('id, offer_id, status, delivery_address_snapshot, driver_id, customer_id, restaurant_id, pricing, restaurant_name, restaurant_suburb, restaurant_city, restaurant_landmark_notes, customer_name, customer_phone')
 
             if (error) {
                 console.error("Fetch Error:", error);
@@ -338,13 +377,17 @@ export const DriverJobs = () => {
                         {isOnline ? 'Waiting for new jobs...' : 'Turn on to start receiving jobs'}
                     </Text>
                 </View>
-                <Switch
-                    value={isOnline}
-                    onValueChange={toggleOnlineStatus}
-                    disabled={isSyncing}
-                    trackColor={{ false: theme.border, true: '#22C55E' }}
-                    thumbColor="#FFF"
-                />
+                <View style={{ gap: 8, alignItems: 'flex-end', flexDirection: 'row' }}>
+                    <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                        <Switch
+                            value={isOnline}
+                            onValueChange={toggleOnlineStatus}
+                            disabled={isSyncing}
+                            trackColor={{ false: theme.border, true: '#22C55E' }}
+                            thumbColor="#FFF"
+                        />
+                    </View>
+                </View>
             </View>
 
             <ScrollView
@@ -437,6 +480,34 @@ export const DriverJobs = () => {
                     })
                 )}
             </ScrollView>
+
+            <Modal visible={showWelcome} transparent animationType="none">
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                    <Animated.View style={{ 
+                        backgroundColor: theme.surface, 
+                        borderRadius: 24, 
+                        padding: 32, 
+                        alignItems: 'center',
+                        width: '100%',
+                        opacity: fadeAnim,
+                        transform: [{ scale: scaleAnim }]
+                    }}>
+                        <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: `${theme.accent}20`, justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
+                            <Store size={40} color={theme.accent} />
+                        </View>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: theme.text, marginBottom: 12, textAlign: 'center' }}>Welcome Aboard! 🎉</Text>
+                        <Text style={{ fontSize: 16, color: theme.textMuted, textAlign: 'center', marginBottom: 32, lineHeight: 24 }}>
+                            Your driver application was approved! You are now ready to start accepting delivery jobs and earning with Appetite.
+                        </Text>
+                        <TouchableOpacity 
+                            style={[styles.primaryButton, { backgroundColor: theme.accent, width: '100%' }]}
+                            onPress={closeWelcome}
+                        >
+                            <Text style={styles.primaryButtonText}>Let's Go!</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+                </View>
+            </Modal>
         </View>
     );
 };

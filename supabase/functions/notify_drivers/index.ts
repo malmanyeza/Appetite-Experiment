@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const orderRecord = payload.record || payload
 
     // 1. STATUS CHECK - Now including 'preparing' as requested
-    const allowedStatuses = ['confirmed', 'preparing', 'ready_for_pickup'];
+    const allowedStatuses = ['confirmed'];
     if (!orderRecord || !allowedStatuses.includes(orderRecord.status)) {
       return new Response(JSON.stringify({ 
         message: `Ignored: Status '${orderRecord?.status}' does not trigger broad driver notification` 

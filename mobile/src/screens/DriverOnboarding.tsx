@@ -10,13 +10,14 @@ import {
     Platform,
     ActivityIndicator,
     Alert,
-    Image,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useTheme } from '../theme';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, User, Phone, MapPin, Briefcase, FileText, CheckCircle2, ChevronRight, Camera, CreditCard } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Custom lightweight polyfill to decode base64 into a pure ArrayBuffer exactly compatible with Supabase Storage
 const decodeBase64 = (base64String: string) => {
@@ -51,9 +52,24 @@ const decodeBase64 = (base64String: string) => {
 export const DriverOnboarding = ({ navigation }: any) => {
     const { theme } = useTheme();
     const { user, profile } = useAuthStore();
+    const queryClient = useQueryClient();
     const [step, setStep] = useState(0); // 0: Gate, 1: Basic, 2: Vehicle, 3: Docs, 4: Payout
     const [loading, setLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [displayProgress, setDisplayProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
+
+    // Smoothing effect for progress bar to show 1% increments
+    React.useEffect(() => {
+        if (loading && displayProgress < uploadProgress) {
+            const timer = setTimeout(() => {
+                setDisplayProgress(prev => Math.min(prev + 1, uploadProgress));
+            }, 30); // 30ms for smooth 1% increments
+            return () => clearTimeout(timer);
+        } else if (!loading && uploadProgress === 0) {
+            setDisplayProgress(0);
+        }
+    }, [loading, displayProgress, uploadProgress]);
 
     // Form State
     const [phone, setPhone] = useState(profile?.phone || '');
@@ -67,8 +83,9 @@ export const DriverOnboarding = ({ navigation }: any) => {
     const [idPhoto, setIdPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
     const [selfie, setSelfie] = useState<ImagePicker.ImagePickerAsset | null>(null);
     const [registrationBook, setRegistrationBook] = useState<ImagePicker.ImagePickerAsset | null>(null);
+    const [driversLicense, setDriversLicense] = useState<ImagePicker.ImagePickerAsset | null>(null);
 
-    const pickImage = async (type: 'id' | 'selfie' | 'registration_book') => {
+    const pickImage = async (type: 'id' | 'selfie' | 'registration_book' | 'drivers_license') => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: false,
@@ -79,6 +96,7 @@ export const DriverOnboarding = ({ navigation }: any) => {
         if (!result.canceled && result.assets && result.assets.length > 0) {
             if (type === 'id') setIdPhoto(result.assets[0]);
             else if (type === 'selfie') setSelfie(result.assets[0]);
+            else if (type === 'drivers_license') setDriversLicense(result.assets[0]);
             else setRegistrationBook(result.assets[0]);
         }
     };
@@ -90,15 +108,19 @@ export const DriverOnboarding = ({ navigation }: any) => {
         }
 
         setLoading(true);
+        setUploadProgress(10);
         setError(null);
         try {
             if (phone && phone !== profile?.phone) {
                 await supabase.from('profiles').update({ phone }).eq('id', user?.id);
             }
+            
+            setUploadProgress(20);
 
             let idPhotoUrl = null;
             let selfieUrl = null;
             let regBookUrl = null;
+            let driversLicenseUrl = null;
 
             if (idPhoto && idPhoto.base64) {
                 const buffer = decodeBase64(idPhoto.base64);
@@ -113,6 +135,7 @@ export const DriverOnboarding = ({ navigation }: any) => {
                 const { data } = supabase.storage.from('driver-documents').getPublicUrl(path);
                 idPhotoUrl = data.publicUrl;
             }
+            setUploadProgress(40);
 
             if (selfie && selfie.base64) {
                 const buffer = decodeBase64(selfie.base64);
@@ -127,6 +150,7 @@ export const DriverOnboarding = ({ navigation }: any) => {
                 const { data } = supabase.storage.from('driver-documents').getPublicUrl(path);
                 selfieUrl = data.publicUrl;
             }
+            setUploadProgress(60);
 
             if (registrationBook && registrationBook.base64) {
                 const buffer = decodeBase64(registrationBook.base64);
@@ -141,6 +165,22 @@ export const DriverOnboarding = ({ navigation }: any) => {
                 const { data } = supabase.storage.from('driver-documents').getPublicUrl(path);
                 regBookUrl = data.publicUrl;
             }
+            setUploadProgress(80);
+
+            if (driversLicense && driversLicense.base64) {
+                const buffer = decodeBase64(driversLicense.base64);
+                const path = `applications/${user?.id}/drivers_license_${Date.now()}.jpg`;
+                const { error: uploadError } = await supabase.storage.from('driver-documents').upload(path, buffer, {
+                    contentType: 'image/jpeg',
+                    upsert: true
+                });
+                if (uploadError) {
+                    throw new Error('Failed to upload driver\'s license: ' + uploadError.message);
+                }
+                const { data } = supabase.storage.from('driver-documents').getPublicUrl(path);
+                driversLicenseUrl = data.publicUrl;
+            }
+            setUploadProgress(90);
 
             const { error } = await supabase.from('driver_profiles').upsert({
                 user_id: user?.id,
@@ -153,11 +193,16 @@ export const DriverOnboarding = ({ navigation }: any) => {
                 id_photo_url: idPhotoUrl,
                 selfie_url: selfieUrl,
                 registration_book_url: regBookUrl,
+                drivers_license_url: driversLicenseUrl,
                 status: 'pending',
                 is_online: false
             });
 
             if (error) throw error;
+            setUploadProgress(100);
+
+            queryClient.setQueryData(['driver-profile', user?.id], { status: 'pending' });
+            queryClient.invalidateQueries({ queryKey: ['driver-profile', user?.id] });
 
             setStep(5); // Success step
         } catch (error: any) {
@@ -310,7 +355,12 @@ export const DriverOnboarding = ({ navigation }: any) => {
 
             <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.surface }]} onPress={() => pickImage('id')}>
                 {idPhoto ? (
-                    <Image source={{ uri: idPhoto.uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
+                    <ExpoImage 
+                        source={{ uri: idPhoto.uri }} 
+                        style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+                        contentFit="cover" 
+                        cachePolicy="disk"
+                    />
                 ) : (
                     <>
                         <Camera size={32} color={theme.textMuted} />
@@ -322,7 +372,12 @@ export const DriverOnboarding = ({ navigation }: any) => {
 
             <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.surface }]} onPress={() => pickImage('selfie')}>
                 {selfie ? (
-                    <Image source={{ uri: selfie.uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
+                    <ExpoImage 
+                        source={{ uri: selfie.uri }} 
+                        style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+                        contentFit="cover" 
+                        cachePolicy="disk"
+                    />
                 ) : (
                     <>
                         <User size={32} color={theme.textMuted} />
@@ -332,9 +387,31 @@ export const DriverOnboarding = ({ navigation }: any) => {
                 )}
             </TouchableOpacity>
 
+            <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.surface }]} onPress={() => pickImage('drivers_license')}>
+                {driversLicense ? (
+                    <ExpoImage 
+                        source={{ uri: driversLicense.uri }} 
+                        style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+                        contentFit="cover" 
+                        cachePolicy="disk"
+                    />
+                ) : (
+                    <>
+                        <CreditCard size={32} color={theme.textMuted} />
+                        <Text style={[styles.uploadText, { color: theme.text }]}>Driver's License</Text>
+                        <Text style={{ color: theme.textMuted, fontSize: 12 }}>(Required to drive on platform)</Text>
+                    </>
+                )}
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.surface }]} onPress={() => pickImage('registration_book')}>
                 {registrationBook ? (
-                    <Image source={{ uri: registrationBook.uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
+                    <ExpoImage 
+                        source={{ uri: registrationBook.uri }} 
+                        style={{ width: '100%', height: '100%', borderRadius: 12 }} 
+                        contentFit="cover" 
+                        cachePolicy="disk"
+                    />
                 ) : (
                     <>
                         <FileText size={32} color={theme.textMuted} />
@@ -411,11 +488,14 @@ export const DriverOnboarding = ({ navigation }: any) => {
             </View>
 
             <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: theme.accent, marginTop: 40 }]}
+                style={[styles.primaryButton, { backgroundColor: theme.accent, marginTop: 40, overflow: 'hidden' }]}
                 onPress={handleSubmit}
                 disabled={loading}
             >
-                {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Submit Application</Text>}
+                {loading && (
+                    <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${displayProgress}%`, backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                )}
+                {loading ? <Text style={styles.buttonText}>Sending documents ({displayProgress}%)</Text> : <Text style={styles.buttonText}>Submit Application</Text>}
             </TouchableOpacity>
         </ScrollView>
     );

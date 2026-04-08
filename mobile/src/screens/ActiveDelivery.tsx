@@ -340,6 +340,14 @@ export const ActiveDelivery = () => {
                     index: 0,
                     routes: [{ name: 'JobsMain' }],
                 });
+            } else {
+                // Optimistic UI for other status changes (e.g. confirming pickup)
+                queryClient.setQueryData(['active-delivery', orderId], (old: any) => {
+                    if (!old) return old;
+                    return { ...old, status };
+                });
+                // Also trigger a background refetch to ensure stay in sync
+                queryClient.invalidateQueries({ queryKey: ['active-delivery', orderId] });
             }
         },
         onError: (err: any) => {
@@ -403,9 +411,9 @@ export const ActiveDelivery = () => {
             {/* Full Screen Map */}
             <MapView
                 ref={mapRef}
-                provider={PROVIDER_GOOGLE}
+                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                 style={StyleSheet.absoluteFillObject}
-                customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
+                customMapStyle={Platform.OS === 'android' ? (isDark ? mapDarkStyle : mapLightStyle) : undefined}
                 onMapReady={() => setIsMapReady(true)}
                 onRegionChangeStart={() => {
                     // Auto-collapse slightly when moving map to give more view

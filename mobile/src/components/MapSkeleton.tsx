@@ -32,7 +32,7 @@ export const MapSkeleton: React.FC<MapSkeletonProps> = ({ visible }) => {
                 { 
                     backgroundColor: isDark ? '#121212' : '#F5F5F7',
                     opacity,
-                    zIndex: 10
+                    zIndex: 1
                 }
             ]}
             pointerEvents="none"

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View, useColorScheme, Text } from 'react-native';
+import { ActivityIndicator, View, useColorScheme, Text, LogBox } from 'react-native';
 import * as ExpoLinking from 'expo-linking';
+
+// Ignore all React Native LogBox notifications in the app completely
+LogBox.ignoreAllLogs();
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './src/store/authStore';
@@ -17,18 +20,11 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from 'react-error-boundary';
 import { GlobalError } from './src/components/GlobalError';
-import * as Sentry from '@sentry/react-native';
 import { createNavigationContainerRef } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const navigationRef = createNavigationContainerRef();
 
-/* Sentry initialization remains at the top level */
-
-Sentry.init({
-  dsn: 'https://a44a140302c25fae7acd8834c1089bc8@o4511050037723136.ingest.us.sentry.io/4511050041720832',
-  debug: __DEV__,
-});
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -49,7 +45,6 @@ if (typeof ErrorUtils !== 'undefined') {
     const defaultHandler = ErrorUtils.getGlobalHandler();
     ErrorUtils.setGlobalHandler((error, isFatal) => {
         console.log('--- GLOBAL ERROR ---', error.message);
-        Sentry.captureException(error);
         
         // In development, we might still want to see the RedBox for easier debugging.
         // In production, we definitely want to avoid it.
@@ -238,4 +233,4 @@ function App() {
     );
 }
 
-export default Sentry.wrap(App);
+export default App;

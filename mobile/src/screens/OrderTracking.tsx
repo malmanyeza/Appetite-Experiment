@@ -667,8 +667,8 @@ export const OrderTracking = ({ route, navigation }: any) => {
                 <MapView
                     ref={mapRef}
                     style={styles.map}
-                    provider={PROVIDER_GOOGLE}
-                    customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
+                    provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                    customMapStyle={Platform.OS === 'android' ? (isDark ? mapDarkStyle : mapLightStyle) : undefined}
                     onMapReady={() => setIsMapReady(true)}
                     initialRegion={{
                         latitude: (order.fulfillment_type === 'pickup' ? (order.delivery_address_snapshot?.lat || order.restaurants?.lat) : (driverLocation?.latitude || order?.delivery_address_snapshot?.lat)) || -17.8248,

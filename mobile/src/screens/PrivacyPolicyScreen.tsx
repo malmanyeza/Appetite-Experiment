@@ -40,9 +40,12 @@ export const PrivacyPolicyScreen = ({ navigation }: any) => {
                     • To communicate with you regarding your orders or account security.
                 </Text>
 
-                <Text style={[styles.heading, { color: theme.text }]}>3. Data Sharing</Text>
+                <Text style={[styles.heading, { color: theme.text }]}>3. Data Sharing as a Purchasing Agent</Text>
                 <Text style={[styles.paragraph, { color: theme.text }]}>
-                    We do not sell your personal data. We only share information with restaurants to prepare your order, drivers to deliver your order, and service providers required to run the app.
+                    Appetite does not sell your personal data. However, as your Purchasing Agent, we must share specific information with third parties to execute your commission:{'\n'}
+                    • Restaurants: To prepare your order, we share your first name and order details.{'\n'}
+                    • Delivery Partners: To fulfill the delivery, we share your name, phone number, and delivery location.{'\n'}
+                    • Service Providers: We share data with payment processors and mapping services required to run the platform.
                 </Text>
 
                 <Text style={[styles.heading, { color: theme.text }]}>4. Your Rights and Account Deletion</Text>

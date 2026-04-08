@@ -23,6 +23,7 @@ import { OrderDetailsScreen } from '../screens/OrderDetailsScreen';
 import { DriverOnboarding } from '../screens/DriverOnboarding';
 import { PrivacyPolicyScreen } from '../screens/PrivacyPolicyScreen';
 import { TermsOfServiceScreen } from '../screens/TermsOfServiceScreen';
+import { HelpSupportScreen } from '../screens/HelpSupportScreen';
 import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
@@ -46,6 +47,7 @@ const AccountStack = () => {
             <Stack.Screen name="DriverOnboarding" component={DriverOnboarding} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
         </Stack.Navigator>
     );
 };

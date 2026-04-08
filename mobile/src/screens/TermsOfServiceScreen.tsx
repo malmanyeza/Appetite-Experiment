@@ -36,11 +36,11 @@ export const TermsOfServiceScreen = ({ navigation }: any) => {
                     • Appetite reserves the right to suspend or terminate accounts that violate these terms or engage in fraudulent activity.
                 </Text>
 
-                <Text style={[styles.heading, { color: theme.text }]}>3. Ordering and Delivery</Text>
+                <Text style={[styles.heading, { color: theme.text }]}>3. Appetite as a Purchasing Agent</Text>
                 <Text style={[styles.paragraph, { color: theme.text }]}>
-                    • Appetite acts as an intermediary between you, independent restaurants, and independent delivery drivers.{'\n'}
-                    • Delivery times are estimates and may vary.{'\n'}
-                    • All sales are final once an order is confirmed by the restaurant.
+                    • Agency Relationship: By using Appetite, you explicitly appoint Appetite and its delivery partners as your personal Purchasing Agents. We are commissioned by you to acquire, pay for, and deliver food and beverages from third-party restaurants on your behalf.{'\n'}
+                    • No Reselling: Appetite does not prepare, manufacture, or resell food. We act solely as your representative to facilitate the transaction between you and the restaurant.{'\n'}
+                    • All sales are final once an order is confirmed by the restaurant and the agent has initiated the purchase.
                 </Text>
 
                 <Text style={[styles.heading, { color: theme.text }]}>4. Driver Obligations</Text>

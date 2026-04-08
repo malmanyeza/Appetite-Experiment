@@ -12,7 +12,7 @@ export const restaurantService = {
     getLocationDetails: async (locationId: string) => {
         const { data, error } = await supabase
             .from('restaurant_locations')
-            .select('*')
+            .select('id, location_name, physical_address, lat, lng, phone, opening_hours, is_open, rating_avg, rating_count, restaurant_id')
             .eq('id', locationId)
             .single();
         if (error) throw error;
@@ -25,7 +25,7 @@ export const restaurantService = {
     getRestaurantInfo: async (restaurantId: string) => {
         const { data, error } = await supabase
             .from('restaurants')
-            .select('*')
+            .select('id, name, cover_image_url, description, categories, rating_avg')
             .eq('id', restaurantId)
             .single();
         if (error) throw error;
@@ -39,7 +39,7 @@ export const restaurantService = {
         // Get all items for the chain
         const { data: items, error: mError } = await supabase
             .from('menu_items')
-            .select('*')
+            .select('id, name, description, price, image_url, category, restaurant_id')
             .eq('restaurant_id', restaurantId)
             .eq('is_available', true)
             .order('category');

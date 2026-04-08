@@ -306,11 +306,11 @@ export const AddressManagementScreen = ({ navigation }: any) => {
                         {/* Full Screen Map */}
                         <MapView
                             ref={mapRef}
-                            provider={PROVIDER_GOOGLE}
+                            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
                             style={StyleSheet.absoluteFillObject}
                             initialRegion={mapRegion}
                             mapPadding={{ top: 0, right: 0, left: 0, bottom: Dimensions.get('screen').height * 0.4 }}
-                            customMapStyle={isDark ? mapDarkStyle : mapLightStyle}
+                            customMapStyle={Platform.OS === 'android' ? (isDark ? mapDarkStyle : mapLightStyle) : undefined}
                             onMapReady={() => setIsMapReady(true)}
                             onPress={() => {
                                 Keyboard.dismiss();

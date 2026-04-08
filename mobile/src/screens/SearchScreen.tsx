@@ -27,7 +27,7 @@ export const SearchScreen = ({ navigation }: any) => {
 
             const { data, error } = await supabase
                 .from('restaurants')
-                .select('*')
+                .select('id, name, cover_image_url, categories, rating_avg, is_open')
                 .or(`name.ilike.%${searchQuery}%,categories.cs.{${searchQuery}}`)
                 .eq('is_open', true);
 
@@ -46,6 +46,8 @@ export const SearchScreen = ({ navigation }: any) => {
                 source={item.cover_image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4'}
                 style={styles.resultImage}
                 contentFit="cover"
+                cachePolicy="disk"
+                priority="high"
             />
             <View style={styles.resultInfo}>
                 <Text style={[styles.resultName, { color: theme.text }]}>{item.name}</Text>
