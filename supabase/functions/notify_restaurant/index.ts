@@ -120,7 +120,9 @@ Deno.serve(async (req) => {
         return webpush.sendNotification(sub, JSON.stringify({
           title: 'New Order Received!',
           body: `Order #${order.id.slice(0, 8)} has been placed at ${restaurant.name}.`,
-          data: { orderId: order.id, type: 'NEW_ORDER' }
+          data: { orderId: order.id, type: 'NEW_ORDER' },
+          tag: 'new-order',
+          renotify: true
         })).catch(err => console.error('Web Push failed for endpoint:', sub.endpoint, err));
       });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -6,12 +6,14 @@ import {
     TouchableOpacity,
     ScrollView,
     Alert,
-    Share
+    Share,
+    ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useQuery } from '@tanstack/react-query';
+import { Branding } from '../components/Branding';
 import {
     User,
     LogOut,
@@ -27,6 +29,7 @@ import {
 
 export const AccountScreen = ({ navigation }: any) => {
     const { theme } = useTheme();
+    const [isSwitching, setIsSwitching] = useState(false);
     const { user, profile, roles, activeRole, setActiveRole, signOut } = useAuthStore();
     
     const { data: driverProfile } = useQuery({
@@ -78,18 +81,22 @@ export const AccountScreen = ({ navigation }: any) => {
     };
 
     const handleRoleSwitch = async () => {
-        if (activeRole === 'driver') {
-            setActiveRole('customer');
-            return;
-        }
-
-        // Fast path: if they already have the driver role, switch immediately without network lookup
-        if (roles.includes('driver')) {
-            setActiveRole('driver');
-            return;
-        }
-
+        if (isSwitching) return;
+        
         try {
+            setIsSwitching(true);
+            
+            if (activeRole === 'driver') {
+                await setActiveRole('customer');
+                return;
+            }
+
+            // Fast path: if they already have the driver role, switch immediately without network lookup
+            if (roles.includes('driver')) {
+                await setActiveRole('driver');
+                return;
+            }
+
             // They don't have the role locally, check their driver_profiles status
             const { data: driverProfile, error } = await supabase
                 .from('driver_profiles')
@@ -123,18 +130,24 @@ export const AccountScreen = ({ navigation }: any) => {
                 return;
             }
 
-            // If approved but role is missing, fetch fresh roles from server seamlessly
-            await useAuthStore.getState().refreshSession();
+            // If approved but role is missing, fetch fresh roles from server PROACTIVELY
+            // if it's not already in our immediate local roles array.
+            if (!roles.includes('driver')) {
+                await useAuthStore.getState().refreshSession();
+            }
             
             if (!useAuthStore.getState().roles.includes('driver')) {
                 Alert.alert('Notice', 'You have been approved! Please restart your app to sync permissions.');
                 return;
             }
 
-            setActiveRole('driver');
+            // Sync the store with the new role and await persistence
+            await setActiveRole('driver');
 
         } catch (err: any) {
             Alert.alert('Error checking status', err.message);
+        } finally {
+            setIsSwitching(false);
         }
     };
 
@@ -164,6 +177,45 @@ export const AccountScreen = ({ navigation }: any) => {
         </TouchableOpacity>
     );
 
+    if (!user) {
+        return (
+            <ScrollView style={[styles.container, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
+                <View style={styles.header}>
+                    <View style={[styles.profileImage, { backgroundColor: theme.surface }]}>
+                        <User size={40} color={theme.textMuted} />
+                    </View>
+                    <Text style={[styles.name, { color: theme.text }]}>Welcome to Appetite</Text>
+                    <Text style={[styles.email, { color: theme.textMuted }]}>Sign in to track orders and save addresses</Text>
+
+                    <TouchableOpacity
+                        style={[styles.roleBadge, { backgroundColor: theme.accent, paddingHorizontal: 40 }]}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <LogOut size={16} color="white" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <Text style={styles.roleBadgeText}>Sign In / Create Account</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={[styles.section, { marginTop: 0 }]}>
+                    <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>App Settings</Text>
+                    <View style={[styles.menuContainer, { backgroundColor: theme.surface }]}>
+                        <MenuItem icon={Share2} label="Invite Friends" onPress={handleShare} />
+                        <MenuItem icon={HelpCircle} label="Help & Support" onPress={() => navigation.navigate('HelpSupport')} />
+                        <MenuItem icon={FileText} label="Terms of Service" onPress={() => navigation.navigate('TermsOfService')} />
+                        <MenuItem icon={FileText} label="Privacy Policy" onPress={() => navigation.navigate('PrivacyPolicy')} showBorder={false} />
+                    </View>
+                </View>
+
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: 'center' }}>
+                        Join thousands of food lovers in Harare getting their favorites delivered fast.
+                    </Text>
+                </View>
+
+            </ScrollView>
+        );
+    }
+
     return (
         <ScrollView style={[styles.container, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
@@ -177,23 +229,37 @@ export const AccountScreen = ({ navigation }: any) => {
                     <TouchableOpacity
                         style={[styles.roleBadge, { backgroundColor: theme.accent }]}
                         onPress={handleRoleSwitch}
+                        disabled={isSwitching}
                     >
-                        <Briefcase size={16} color="white" />
-                        <Text style={styles.roleBadgeText}>
-                            {roles.includes('driver') 
-                                ? 'Switch to Driver' 
-                                : driverProfile?.status === 'pending'
-                                    ? 'Application Under Review'
-                                    : 'Become a Driver'}
-                        </Text>
+                        {isSwitching ? (
+                            <ActivityIndicator size="small" color="white" />
+                        ) : (
+                            <>
+                                <Briefcase size={16} color="white" />
+                                <Text style={styles.roleBadgeText}>
+                                    {roles.includes('driver') 
+                                        ? 'Switch to Driver' 
+                                        : driverProfile?.status === 'pending'
+                                            ? 'Application Under Review'
+                                            : 'Become a Driver'}
+                                </Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
                         style={[styles.roleBadge, { backgroundColor: theme.accent }]}
                         onPress={handleRoleSwitch}
+                        disabled={isSwitching}
                     >
-                        <User size={16} color="white" />
-                        <Text style={styles.roleBadgeText}>Switch to Customer</Text>
+                        {isSwitching ? (
+                            <ActivityIndicator size="small" color="white" />
+                        ) : (
+                            <>
+                                <User size={16} color="white" />
+                                <Text style={styles.roleBadgeText}>Switch to Customer</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 )}
             </View>
@@ -227,7 +293,6 @@ export const AccountScreen = ({ navigation }: any) => {
                 <Text style={styles.deleteText}>Delete Account</Text>
             </TouchableOpacity>
 
-            <Text style={[styles.versionText, { color: theme.textMuted }]}>Version 1.0.0 (Build 5)</Text>
         </ScrollView>
     );
 };

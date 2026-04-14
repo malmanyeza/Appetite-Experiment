@@ -58,7 +58,33 @@ Deno.serve(async (req) => {
     const result = await response.json()
     console.log(`Expo notification result (User Notification):`, result)
 
-    return new Response(JSON.stringify({ success: true, result }), { 
+    // 4. Send Web Push
+    const { data: webSubs } = await supabase
+      .from('web_push_subscriptions')
+      .select('subscription')
+      .eq('user_id', userId)
+
+    if (webSubs?.length) {
+      const vapidPublic = Deno.env.get('VAPID_PUBLIC_KEY') || 'BLD_WNWSzhZvd9hqgkGQ2qTi1CjvOnhnxnNhz2B7Db6Jhk0HNTs3o2O6I1Ld5j5hOfT93HjjU10ErD0gjRAPcrc';
+      const vapidPrivate = Deno.env.get('VAPID_PRIVATE_KEY') || 'oS39sJFRlmeG_jhnnz5evNIfAjlnSl79mNyuP3tPxe4';
+      
+      const webpush = await import("npm:web-push").then(m => m.default);
+      webpush.setVapidDetails('mailto:malmanyeza@gmail.com', vapidPublic, vapidPrivate);
+
+      const promises = webSubs.map(s => {
+        const sub = s.subscription as any;
+        return webpush.sendNotification(sub, JSON.stringify({
+          title,
+          body,
+          data: data || {},
+          tag: 'user-alert',
+          renotify: true
+        })).catch(() => {});
+      });
+      await Promise.all(promises);
+    }
+
+    return new Response(JSON.stringify({ success: true, result, webPushCount: webSubs?.length || 0 }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     })
 

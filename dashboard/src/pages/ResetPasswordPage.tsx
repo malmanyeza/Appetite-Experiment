@@ -18,7 +18,7 @@ export const ResetPasswordPage = () => {
 
     React.useEffect(() => {
         const handleSession = async () => {
-            const code = searchParams.get('code');
+            const code = searchParams.get('code') || new URLSearchParams(window.location.search).get('code');
             if (code) {
                 try {
                     await supabase.auth.exchangeCodeForSession(code);

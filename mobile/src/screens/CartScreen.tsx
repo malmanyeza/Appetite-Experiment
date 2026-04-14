@@ -323,6 +323,20 @@ export const CartScreen = ({ navigation }: any) => {
 
     const handleCheckout = () => {
         if (items.length === 0) return;
+
+        // AUTH GATE: Prevent guests from checking out without an account
+        if (!profile) {
+            Alert.alert(
+                'Sign In Required',
+                'Please sign in or create an account to place an order.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign In', onPress: () => navigation.navigate('Login') }
+                ]
+            );
+            return;
+        }
+
         if (!fulfillmentType) {
             setFulfillmentPromptVisible(true);
             return;
@@ -734,7 +748,8 @@ export const CartScreen = ({ navigation }: any) => {
                             <ActivityIndicator color="#FFF" />
                         ) : (
                             <Text style={styles.buttonText}>
-                                {paymentMethod === 'ecocash' ? 'Pay with EcoCash' : 
+                                {!profile ? 'Sign in to Place Order' : 
+                                 paymentMethod === 'ecocash' ? 'Pay with EcoCash' : 
                                  paymentMethod === 'card' ? 'Pay with Card' : 
                                  (fulfillmentType === 'delivery' ? 'Confirm Delivery & Pay' : 'Confirm Pickup & Pay')}
                             </Text>

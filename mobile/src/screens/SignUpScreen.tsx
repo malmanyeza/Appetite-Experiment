@@ -117,7 +117,11 @@ export const SignUpScreen = ({ navigation }: any) => {
             keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}>
+            <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
+                keyboardShouldPersistTaps="handled"
+            >
                 <View style={{ flex: 1 }} />
                 <TouchableOpacity
                     style={styles.backButton}

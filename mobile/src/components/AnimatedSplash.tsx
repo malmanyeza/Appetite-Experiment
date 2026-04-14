@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Dimensions, Easing, View, Platform, ImageBackground } from 'react-native';
+import { useLocationStore } from '../store/locationStore';
+import { Branding } from './Branding';
 
 const { width, height } = Dimensions.get('window');
 
@@ -14,17 +16,31 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
     const [isFading, setIsFading] = useState(false);
     const [minTimeElapsed, setMinTimeElapsed] = useState(false);
     const opacityAnim = useRef(new Animated.Value(1)).current;
-    
+
     // Split the word for wave animation
     const word = 'appetite';
     const letterAnims = useRef(word.split('').map(() => new Animated.Value(0))).current;
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const setSplashHasFinished = useLocationStore(state => state.setSplashHasFinished);
 
     useEffect(() => {
         // HIDE THE NATIVE SPLASH: Doing it here ensures there is zero gap
         // between the static image and our animation.
-        import('expo-splash-screen').then(pkg => pkg.hideAsync().catch(() => {}));
+        import('expo-splash-screen').then(pkg => pkg.hideAsync().catch(() => { }));
 
-        // Start the typography wave animation
+        // Fail-safe: If for any reason the image doesn't fire onLoad in 2s,
+        // we start the animation anyway so the user isn't stuck.
+        const failSafe = setTimeout(() => {
+            setImageLoaded(true);
+        }, 2000);
+
+        return () => clearTimeout(failSafe);
+    }, []);
+
+    useEffect(() => {
+        if (!imageLoaded) return;
+
+        // Start the typography wave animation ONLY after image is ready
         const animations = letterAnims.map((anim, index) => {
             return Animated.sequence([
                 Animated.timing(anim, {
@@ -49,23 +65,18 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
                 beginFadeOut();
             }
         });
-    }, []);
+    }, [imageLoaded]);
 
     useEffect(() => {
-        if (isFirstLaunch === true) {
-            // First time loading: Force a 2.5s minimum stay for a premium intro
-            const timer = setTimeout(() => setMinTimeElapsed(true), 2500);
-            return () => clearTimeout(timer);
-        } else if (isFirstLaunch === false) {
-            // Not the first time: be as fast as possible
-            setMinTimeElapsed(true);
-        }
-    }, [isFirstLaunch]);
+        // Force a 2.5s minimum stay for a premium intro every time
+        const timer = setTimeout(() => setMinTimeElapsed(true), 3500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         // Trigger fade out ONLY when BOTH conditions are met:
         // 1. Core data/auth is ready (isAppReady)
-        // 2. Minimum display time reached (minTimeElapsed - instant on subsequent loads)
+        // 2. Minimum display time reached (minTimeElapsed)
         if (isAppReady && minTimeElapsed && !animationDone && !isFading) {
             beginFadeOut();
         }
@@ -81,29 +92,12 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
             useNativeDriver: true,
         }).start(() => {
             setAnimationDone(true);
+            setSplashHasFinished(true); // Signal to the app that the reveal is complete
             onReady();
         });
     };
 
     if (animationDone) return null;
-
-    const Content = () => (
-        <View style={styles.overlay}>
-            <View style={styles.textContainer}>
-                {word.split('').map((letter, index) => (
-                    <Animated.Text
-                        key={index}
-                        style={[
-                            styles.logoText,
-                            { transform: [{ translateY: letterAnims[index] }] }
-                        ]}
-                    >
-                        {letter}
-                    </Animated.Text>
-                ))}
-            </View>
-        </View>
-    );
 
     return (
         <Animated.View 
@@ -114,19 +108,32 @@ export const AnimatedSplash: React.FC<AnimatedSplashProps> = ({ onReady, isAppRe
                 isFading && { elevation: 0, zIndex: 0 }
             ]}
         >
-            {isFirstLaunch ? (
-                <ImageBackground
-                    source={require('../../assets/images/splash_bg.png')}
-                    style={styles.backgroundImage}
-                    resizeMode="cover"
-                >
-                    <Content />
-                </ImageBackground>
-            ) : (
-                <View style={styles.backgroundImage}>
-                    <Content />
+            <ImageBackground
+                source={require('../../assets/images/splash_bg.png')}
+                style={styles.backgroundImage}
+                resizeMode="cover"
+                onLoad={() => setImageLoaded(true)}
+            >
+                <View style={styles.overlay}>
+                    <View style={styles.textContainer}>
+                        {word.split('').map((letter, index) => (
+                            <Animated.Text
+                                key={index}
+                                style={[
+                                    styles.logoText,
+                                    { transform: [{ translateY: letterAnims[index] }] }
+                                ]}
+                            >
+                                {letter}
+                            </Animated.Text>
+                        ))}
+                    </View>
+
+                    <Branding 
+                        style={{ position: 'absolute', bottom: 60 }} 
+                    />
                 </View>
-            )}
+            </ImageBackground>
         </Animated.View>
     );
 };

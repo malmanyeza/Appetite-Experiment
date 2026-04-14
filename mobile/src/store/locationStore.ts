@@ -19,6 +19,10 @@ interface LocationState {
     selectedLocation: Address | null;
     setSelectedLocation: (location: Address | null) => void;
     clearLocation: () => void;
+    splashHasFinished: boolean;
+    setSplashHasFinished: (finished: boolean) => void;
+    hasAutoPrompted: boolean;
+    setHasAutoPrompted: (prompted: boolean) => void;
 }
 
 const secureStorage = {
@@ -42,6 +46,10 @@ export const useLocationStore = create<LocationState>()(
             selectedLocation: null,
             setSelectedLocation: (location) => set({ selectedLocation: location }),
             clearLocation: () => set({ selectedLocation: null }),
+            splashHasFinished: false,
+            setSplashHasFinished: (finished) => set({ splashHasFinished: finished }),
+            hasAutoPrompted: false,
+            setHasAutoPrompted: (prompted) => set({ hasAutoPrompted: prompted }),
         }),
         {
             name: 'appetite-location-storage',

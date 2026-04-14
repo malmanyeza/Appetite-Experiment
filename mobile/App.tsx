@@ -14,6 +14,7 @@ import { supabase } from './src/lib/supabase';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { AnimatedSplash } from './src/components/AnimatedSplash';
 import { useNetwork } from './src/hooks/useNetwork';
+import { useLocationStore } from './src/store/locationStore';
 import { useApprovalListener } from './src/hooks/useApprovalListener';
 import { WifiOff } from 'lucide-react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -105,29 +106,11 @@ function App() {
     useApprovalListener();
 
     const [showSplash, setShowSplash] = useState(true);
-    const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
-
-    const checkFirstLaunch = async () => {
-        try {
-            const hasLaunched = await AsyncStorage.getItem('HAS_LAUNCHED_BEFORE');
-            if (hasLaunched === null) {
-                // First time!
-                setIsFirstLaunch(true);
-                await AsyncStorage.setItem('HAS_LAUNCHED_BEFORE', 'true');
-            } else {
-                setIsFirstLaunch(false);
-            }
-        } catch (e) {
-            setIsFirstLaunch(false); // fallback to fast boot on error
-        }
-    };
-
-    useEffect(() => {
-        checkFirstLaunch();
-    }, []);
 
     const colorScheme = useColorScheme();
     const { loading, user, refreshSession } = useAuthStore();
+    const setSplashHasFinished = useLocationStore(state => state.setSplashHasFinished);
+    const setHasAutoPrompted = useLocationStore(state => state.setHasAutoPrompted);
     const { isOnline } = useNetwork();
     
     // -------------------------------------------------------------------------
@@ -151,16 +134,20 @@ function App() {
     const theme = isDark ? Colors.dark : Colors.light;
 
     useEffect(() => {
+        // RESET SPLASH STATE: Ensure every fresh app launch starts from zero to avoid pre-emptive triggers
+        setSplashHasFinished(false);
+        setHasAutoPrompted(false);
+
         // Initial session check
         refreshSession();
-
-        // Fail-safe: Always dismiss splash after 10 seconds to prevent getting stuck
+        
+        // Fail-safe: Always dismiss splash after 5 seconds to prevent getting stuck
         const failSafeTimeout = setTimeout(() => {
             if (showSplash) {
-                console.warn('[App] Fail-safe triggered: Dismissing splash screen after 3s');
+                console.warn('[App] Fail-safe triggered: Dismissing splash screen after 5s');
                 setShowSplash(false);
             }
-        }, 3000);
+        }, 5000);
 
         // Listen for auth state changes safely
         const authData = supabase?.auth?.onAuthStateChange((event: string, session: any) => {
@@ -169,8 +156,6 @@ function App() {
             } else if (event === 'SIGNED_OUT') {
                 refreshSession(null);
             } else if (event === 'PASSWORD_RECOVERY') {
-                // We let the NavigationContainer's 'linking' handle the routing now 
-                // to avoid double-navigation conflicts.
                 console.log('[Auth] Password recovery event detected');
             }
         });
@@ -204,7 +189,6 @@ function App() {
             <ErrorBoundary 
                 FallbackComponent={GlobalError as any}
                 onReset={() => {
-                    // Reset app state if needed
                     queryClient.clear();
                 }}
             >
@@ -221,8 +205,7 @@ function App() {
                         </NavigationContainer>
                         {showSplash && (
                             <AnimatedSplash 
-                                isAppReady={!loading && isFirstLaunch !== null} 
-                                isFirstLaunch={isFirstLaunch}
+                                isAppReady={!loading} 
                                 onReady={() => setShowSplash(false)} 
                             />
                         )}

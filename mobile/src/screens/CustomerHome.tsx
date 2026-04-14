@@ -62,7 +62,7 @@ export const CustomerHome = () => {
     const [isFetchingLocation, setIsFetchingLocation] = React.useState(false);
     const [modalLocationFetched, setModalLocationFetched] = React.useState(false);
 
-    const { selectedLocation, setSelectedLocation } = useLocationStore();
+    const { selectedLocation, setSelectedLocation, splashHasFinished, hasAutoPrompted, setHasAutoPrompted } = useLocationStore();
     const { profile } = useAuthStore();
     const [mapRegion, setMapRegion] = React.useState<any>(selectedLocation ? {
         latitude: selectedLocation.lat,
@@ -75,7 +75,7 @@ export const CustomerHome = () => {
     const mapRef = React.useRef<MapView | null>(null);
     const googlePlacesRef = React.useRef<any>(null);
     const modalY = React.useRef(new Animated.Value(0)).current;
-    
+
     // Track modalY value for synchronous use in PanResponder
     const modalYValue = React.useRef(0);
     React.useEffect(() => {
@@ -86,9 +86,8 @@ export const CustomerHome = () => {
     }, [modalY]);
 
     const scrollY = React.useRef(new Animated.Value(0)).current;
-    const [hasAutoPrompted, setHasAutoPrompted] = React.useState(false);
     const modalEntryAnim = React.useRef(new Animated.Value(Dimensions.get('window').height)).current;
-    
+
     // 5. Done Button Animation & State
     const [isLocationSelected, setIsLocationSelected] = React.useState(false);
     const [isModalDown, setIsModalDown] = React.useState(false);
@@ -99,6 +98,7 @@ export const CustomerHome = () => {
     const isProgrammaticChange = React.useRef(false);
     const [isGpsButtonLoading, setIsGpsButtonLoading] = React.useState(false);
     const gpsRequestCounter = React.useRef(0);
+    const isHumanGestureRef = React.useRef(false);
 
     const showDoneButton = () => {
         setHasAutoPrompted(true); // LOCK immediately to prevent any re-popups during selection
@@ -168,7 +168,7 @@ export const CustomerHome = () => {
     };
     // Removed auto-animating map region when selectedLocation changes to solve infinite panning loops.
     // Instead, explicit actions like pressing GPS and choosing saved locations will manually call animateToRegion.
-    
+
     const [hasAnimatedInitialLocation, setHasAnimatedInitialLocation] = React.useState(false);
 
     React.useEffect(() => {
@@ -195,9 +195,9 @@ export const CustomerHome = () => {
                     // SECURE FIX: We now IGNORE lastKnown to prevent "neighbor house" jumping.
                     // We force a brand-new, high-precision satellite lock.
                     const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Highest });
-                    
+
                     setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-                    
+
                     isProgrammaticChange.current = true;
                     mapRef.current?.animateToRegion({
                         latitude: loc.coords.latitude,
@@ -235,14 +235,14 @@ export const CustomerHome = () => {
         queryKey: ['default_address', profile?.id],
         queryFn: async () => {
             if (selectedLocation) return selectedLocation;
-            
+
             const { data, error } = await supabase
                 .from('addresses')
                 .select('id, label, city, suburb, street, lat, lng, is_default')
                 .eq('user_id', profile?.id)
                 .eq('is_default', true)
                 .single();
-            
+
             if (data && !selectedLocation) {
                 setSelectedLocation(data);
             }
@@ -259,10 +259,10 @@ export const CustomerHome = () => {
                     const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                     if (status === 'granted') {
                         const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
-                        
+
                         // Try to reverse geocode for a better label using Google API
                         const rev = await reverseGeocodeGoogle(loc.coords.latitude, loc.coords.longitude);
-                        
+
                         setSelectedLocation({
                             city: rev?.city || 'Current Location',
                             suburb: rev?.suburb || 'Nearby',
@@ -297,18 +297,15 @@ export const CustomerHome = () => {
         enabled: !!profile?.id
     });
 
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-        UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
+    // LayoutAnimation experimental is no longer needed in the New Architecture
 
     const { data: restaurants, isLoading, refetch, isRefetching } = useQuery({
         queryKey: ['restaurants', selectedCategory, selectedLocation?.lat, selectedLocation?.lng],
         queryFn: async () => {
             // Use the active selected location (GPS or searched) as the single source of truth
-            const coordLat = selectedLocation?.lat;
-            const coordLng = selectedLocation?.lng;
-
-            if (!coordLat || !coordLng) return [];
+            // Fallback to Harare Center (INITIAL_REGION) so guests see restaurants immediately
+            const coordLat = selectedLocation?.lat || INITIAL_REGION.latitude;
+            const coordLng = selectedLocation?.lng || INITIAL_REGION.longitude;
 
             const { data, error } = await supabase.rpc('get_restaurants_with_distance', {
                 u_lat: coordLat,
@@ -338,18 +335,23 @@ export const CustomerHome = () => {
         }
     }, [restaurants]);
 
-    // 4. Auto-trigger modal after restaurants load (One-time)
+    // 1. Auto-trigger modal after a small delay once the app is REVEALED
+
+    // 1. Auto-trigger modal after a small delay once the app is REVEALED
     React.useEffect(() => {
-        // Only trigger if restaurants are loaded and we haven't prompted yet
-        if (!hasAutoPrompted && !isLoading && restaurants && restaurants.length > 0) {
+        // Only trigger if:
+        // 1. Splash is gone (splashHasFinished is now true)
+        // 2. Restaurants are loaded
+        // 3. We haven't prompted yet
+        if (splashHasFinished && !isLoading && !hasAutoPrompted && restaurants && restaurants.length > 0) {
             const timer = setTimeout(() => {
                 setIsAutoTrigger(true); // Auto trigger uses slow animation
                 setLocationModalVisible(true);
                 setHasAutoPrompted(true);
-            }, 800); // Slight delay after restaurants appear
+            }, 500);
             return () => clearTimeout(timer);
         }
-    }, [isLoading, restaurants, hasAutoPrompted]);
+    }, [splashHasFinished, isLoading, restaurants, hasAutoPrompted]);
 
     // 5. Modal Animation Control -- Monitors visibility changes (Auto or Manual)
     React.useEffect(() => {
@@ -357,19 +359,29 @@ export const CustomerHome = () => {
             // Strictly enforce UP position on every load 
             modalY.setValue(0);
             setIsModalDown(false);
-            // Ensure map points to relevant context before showing
-            // Only auto-center if we haven't already interacted/animated
-            if (gpsLocation && !selectedLocation && !hasAnimatedInitialLocation) {
-                const region = {
-                    latitude: gpsLocation.lat,
-                    longitude: gpsLocation.lng,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                };
-                setMapRegion(region);
-                isProgrammaticChange.current = true;
-                mapRef.current?.animateToRegion(region, 500);
-            }
+
+            // SECURE GPS LOCK: When the modal opens, we want to show exactly where the user is
+            // right now, especially if they have physically moved since the app started.
+            (async () => {
+                try {
+                    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+                    if (status === 'granted') {
+                        const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+                        const region = {
+                            latitude: loc.coords.latitude,
+                            longitude: loc.coords.longitude,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                        };
+                        setGpsLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+                        setMapRegion(region);
+                        isProgrammaticChange.current = true;
+                        mapRef.current?.animateToRegion(region, 500);
+                    }
+                } catch (err) {
+                    console.warn('[Home] Modal GPS snap failed:', err);
+                }
+            })();
 
             // Super smooth decelerating animation
             // Speed logic: Auto-start is very slow (2.5s) for premium feel, Manual is elegant (800ms)
@@ -379,20 +391,11 @@ export const CustomerHome = () => {
                     Animated.timing(modalEntryAnim, {
                         toValue: 0,
                         duration: targetDuration,
-                        easing: isAutoTrigger ? (t) => 1 - Math.pow(1 - t, 6) : (t) => 1 - Math.pow(1 - t, 3), 
+                        easing: isAutoTrigger ? (t) => 1 - Math.pow(1 - t, 6) : (t) => 1 - Math.pow(1 - t, 3),
                         useNativeDriver: true,
                     }).start();
                 }
             });
-
-            // FORCE-WAKE HEARTBEAT: If map hasn't ready-ed in 3s, force it!
-            const timer = setTimeout(() => {
-                if (locationModalVisible) {
-                    setIsMapReady(true);
-                }
-            }, 3000);
-
-            return () => clearTimeout(timer);
         } else {
             // Ensure off-screen when hidden
             modalEntryAnim.setValue(Dimensions.get('window').height);
@@ -402,7 +405,7 @@ export const CustomerHome = () => {
 
     const prefetchRestaurant = async (locationId: string, restaurantId: string) => {
         if (!locationId || !restaurantId) return;
-        
+
         // Prefetch location details
         queryClient.prefetchQuery({
             queryKey: ['location', locationId],
@@ -471,9 +474,9 @@ export const CustomerHome = () => {
         <View style={[
             styles.searchBar,
             { backgroundColor: theme.surface },
-            isSticky && { 
-                height: 50, 
-                borderRadius: 25, 
+            isSticky && {
+                height: 50,
+                borderRadius: 25,
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.2,
@@ -503,11 +506,11 @@ export const CustomerHome = () => {
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* Sticky Search Bar Overlay */}
-            <Animated.View 
+            <Animated.View
                 pointerEvents="box-none"
                 style={[
-                    styles.stickyHeader, 
-                    { 
+                    styles.stickyHeader,
+                    {
                         backgroundColor: 'transparent', // Container is transparent
                         opacity: stickyOpacity,
                         transform: [
@@ -519,8 +522,8 @@ export const CustomerHome = () => {
                 ]}
             >
                 <View style={[
-                    styles.stickyInner, 
-                    { 
+                    styles.stickyInner,
+                    {
                         backgroundColor: theme.background,
                         borderBottomColor: theme.surface,
                         borderBottomWidth: StyleSheet.hairlineWidth
@@ -557,7 +560,7 @@ export const CustomerHome = () => {
                 </TouchableOpacity>
             </View>
 
-            <Animated.ScrollView 
+            <Animated.ScrollView
                 showsVerticalScrollIndicator={false}
                 onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -664,8 +667,8 @@ export const CustomerHome = () => {
                 statusBarTranslucent={true}
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <Animated.View 
-                        style={{ 
+                    <Animated.View
+                        style={{
                             height: Dimensions.get('screen').height,
                             backgroundColor: 'transparent',
                             transform: [{ translateY: modalEntryAnim }]
@@ -691,27 +694,28 @@ export const CustomerHome = () => {
                             onRegionChangeStart={(_region, details) => {
                                 Keyboard.dismiss();
                                 // isGesture is supplied by react-native-maps (mostly reliable on iOS)
-                                const isHumanGesture = details ? details.isGesture : !isProgrammaticChange.current;
-                                
-                                // We no longer auto-hide the sheet when the map is moved. 
-                                // The user can pull it down manually if they want to see more map.
-                                if (isHumanGesture) {
+                                // We store this in a ref so onRegionChangeComplete can see it
+                                isHumanGestureRef.current = details ? details.isGesture : !isProgrammaticChange.current;
+
+                                if (isHumanGestureRef.current) {
                                     Animated.spring(pinAnim, { toValue: -15, useNativeDriver: true }).start();
                                     gpsRequestCounter.current += 1;
                                     setIsFetchingLocation(true);
                                     setHasAnimatedInitialLocation(true);
                                 }
                             }}
-                            onRegionChangeComplete={async (region, details) => {
+                            onRegionChangeComplete={async (region, _details) => {
                                 // We stay in whatever state the user has left the sheet (usually UP)
-                                if (!isHumanGesture || isProgrammaticChange.current) {
+                                if (!isHumanGestureRef.current || isProgrammaticChange.current) {
                                     isProgrammaticChange.current = false;
+                                    isHumanGestureRef.current = false; // Reset
                                     Animated.spring(pinAnim, { toValue: 0, useNativeDriver: true }).start();
                                     return;
                                 }
 
+                                isHumanGestureRef.current = false; // Reset for next time
                                 Animated.spring(pinAnim, { toValue: 0, useNativeDriver: true }).start();
-                                
+
                                 try {
                                     const rev = await reverseGeocodeGoogle(region.latitude, region.longitude);
                                     if (rev) {
@@ -759,8 +763,8 @@ export const CustomerHome = () => {
                                 </View>
                             </Animated.View>
                             <Animated.View style={[
-                                styles.pinShadow, 
-                                { 
+                                styles.pinShadow,
+                                {
                                     opacity: pinAnim.interpolate({ inputRange: [-15, 0], outputRange: [0.3, 1] }),
                                     transform: [{ scale: pinAnim.interpolate({ inputRange: [-15, 0], outputRange: [0.5, 1] }) }]
                                 }
@@ -817,16 +821,16 @@ export const CustomerHome = () => {
                                             googlePlacesRef.current?.blur();
                                             Keyboard.dismiss();
 
-                                            // Animate map to location
-                                            const region = {
-                                                latitude: newLoc.lat,
-                                                longitude: newLoc.lng,
-                                                latitudeDelta: 0.005,
-                                                longitudeDelta: 0.005,
-                                            };
                                             isProgrammaticChange.current = true;
-                                            setMapRegion(region);
-                                            mapRef.current?.animateToRegion(region, 500);
+                                            mapRef.current?.animateCamera({
+                                                center: {
+                                                    latitude: newLoc.lat,
+                                                    longitude: newLoc.lng,
+                                                },
+                                                zoom: 15,
+                                                heading: 0,
+                                                pitch: 0,
+                                            }, { duration: 600 });
 
                                             showDoneButton();
                                         }
@@ -878,12 +882,12 @@ export const CustomerHome = () => {
                                             shadowOpacity: 0.3,
                                             shadowRadius: 8
                                         },
-                                        row: { 
-                                            padding: 13, 
-                                            height: 52, 
-                                            flexDirection: 'row', 
+                                        row: {
+                                            padding: 13,
+                                            height: 52,
+                                            flexDirection: 'row',
                                             alignItems: 'center',
-                                            backgroundColor: theme.background 
+                                            backgroundColor: theme.background
                                         },
                                         separator: { height: 1, backgroundColor: theme.border },
                                         description: { color: theme.text, fontSize: 14 }
@@ -893,16 +897,16 @@ export const CustomerHome = () => {
                         </View>
 
                         {/* Animated Overlay */}
-                        <Animated.View 
-                            style={{ 
+                        <Animated.View
+                            style={{
                                 position: 'absolute',
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
                                 height: Dimensions.get('screen').height * 0.65,
-                                borderTopLeftRadius: 48, 
-                                borderTopRightRadius: 48, 
-                                backgroundColor: theme.background, 
+                                borderTopLeftRadius: 48,
+                                borderTopRightRadius: 48,
+                                backgroundColor: theme.background,
                                 padding: 24,
                                 paddingBottom: insets.bottom + 24, // SEAL THE GAP
                                 transform: [{ translateY: modalY }],
@@ -915,7 +919,7 @@ export const CustomerHome = () => {
                             }}
                         >
                             {/* Drag Handle - Larger touch area for usability */}
-                            <View 
+                            <View
                                 {...panResponder.panHandlers}
                                 style={{
                                     width: '100%',
@@ -926,14 +930,14 @@ export const CustomerHome = () => {
                                     zIndex: 10
                                 }}
                             >
-                                <View 
+                                <View
                                     style={{
                                         width: 40,
                                         height: 5,
                                         borderRadius: 3,
                                         backgroundColor: theme.textMuted,
                                         opacity: 0.3
-                                    }} 
+                                    }}
                                 />
                             </View>
                             <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.text, marginBottom: 4 }}>Delivery Details</Text>
@@ -943,7 +947,7 @@ export const CustomerHome = () => {
                                 <View style={{ gap: 20, paddingBottom: 40 }}>
                                     <View>
                                         <Text style={{ fontSize: 13, fontWeight: 'bold', color: theme.textMuted, textTransform: 'uppercase', marginBottom: 12, letterSpacing: 1 }}>Selected Spot</Text>
-                                        
+
                                         {/* GPS Capture Button */}
                                         <TouchableOpacity
                                             style={{
@@ -970,7 +974,7 @@ export const CustomerHome = () => {
                                                 try {
                                                     const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
                                                     if (status === 'granted') {
-                                                        // 1. FAST INITIAL JUMP (Instant UI)
+                                                        // 1. FAST INITIAL JUMP (Visual UI feedback only)
                                                         const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
                                                         if (lastKnown && currentRequestId === gpsRequestCounter.current) {
                                                             isProgrammaticChange.current = true;
@@ -979,30 +983,16 @@ export const CustomerHome = () => {
                                                                 longitude: lastKnown.coords.longitude,
                                                                 latitudeDelta: 0.005,
                                                                 longitudeDelta: 0.005,
-                                                            }, 200);
-                                                            
-                                                            const revFast = await reverseGeocodeGoogle(lastKnown.coords.latitude, lastKnown.coords.longitude);
-                                                            if (revFast && currentRequestId === gpsRequestCounter.current) {
-                                                                setSelectedLocation({
-                                                                    label: 'Current Spot',
-                                                                    city: revFast.city || 'Harare',
-                                                                    suburb: revFast.suburb || 'Nearby',
-                                                                    street: revFast.physical_address || '',
-                                                                    lat: lastKnown.coords.latitude,
-                                                                    lng: lastKnown.coords.longitude
-                                                                });
-                                                                showDoneButton();
-                                                                setIsGpsButtonLoading(false);
-                                                                setIsFetchingLocation(false);
-                                                            }
+                                                            }, 300);
                                                         }
 
-                                                        // 2. HIGH ACCURACY REFINEMENT (Fast but more precise than Balanced)
-                                                        const loc = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
-                                                        
-                                                        // Check if still valid (user didn't move map manually during wait)
+                                                        // 2. FORCED HIGH-PRECISION LOCK (The actual source of truth)
+                                                        const loc = await ExpoLocation.getCurrentPositionAsync({ 
+                                                            accuracy: ExpoLocation.Accuracy.Highest 
+                                                        });
+
                                                         if (currentRequestId !== gpsRequestCounter.current) return;
-                                                        
+
                                                         isProgrammaticChange.current = true;
                                                         mapRef.current?.animateToRegion({
                                                             latitude: loc.coords.latitude,
@@ -1010,11 +1000,9 @@ export const CustomerHome = () => {
                                                             latitudeDelta: 0.005,
                                                             longitudeDelta: 0.005,
                                                         }, 500);
-                                                        setHasAnimatedInitialLocation(true);
 
                                                         const revRefined = await reverseGeocodeGoogle(loc.coords.latitude, loc.coords.longitude);
-                                                        
-                                                        // Check if still valid
+
                                                         if (currentRequestId !== gpsRequestCounter.current) return;
 
                                                         if (revRefined) {
@@ -1025,10 +1013,8 @@ export const CustomerHome = () => {
                                                                 street: revRefined.physical_address || '',
                                                                 lat: loc.coords.latitude,
                                                                 lng: loc.coords.longitude
-                                                                });
+                                                            });
                                                             showDoneButton();
-                                                            setIsGpsButtonLoading(false);
-                                                            setIsFetchingLocation(false);
                                                         }
                                                     } else {
                                                         Alert.alert('Permission Denied', 'Location permission is required.');
@@ -1050,7 +1036,7 @@ export const CustomerHome = () => {
                                             </View>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>
-                                                    {isGpsButtonLoading ? 'Locating...' : 'Use Current Location'}
+                                                    {isGpsButtonLoading ? 'Locating...' : 'Use my current location'}
                                                 </Text>
                                                 <Text style={{ color: theme.textMuted, fontSize: 12 }}>Pinpoint your exact delivery spot</Text>
                                             </View>
@@ -1058,12 +1044,12 @@ export const CustomerHome = () => {
 
                                         {/* Selected Location Card (Redesigned to look like a STATUS, not a button) */}
                                         {selectedLocation && (
-                                            <View 
-                                                style={{ 
+                                            <View
+                                                style={{
                                                     backgroundColor: theme.surface + '80', // More translucent
-                                                    borderRadius: 24, 
-                                                    padding: 20, 
-                                                    borderWidth: 1.5, 
+                                                    borderRadius: 24,
+                                                    padding: 20,
+                                                    borderWidth: 1.5,
                                                     borderColor: theme.border,
                                                     borderStyle: 'dashed', // Differentiates from solid buttons
                                                     marginTop: 8
@@ -1135,11 +1121,11 @@ export const CustomerHome = () => {
 
                             {/* Floating DONE Button */}
                             {isLocationSelected && (
-                                <Animated.View 
-                                    style={{ 
-                                        position: 'absolute', 
+                                <Animated.View
+                                    style={{
+                                        position: 'absolute',
                                         bottom: insets.bottom + 20, // ADJUST FOR ANDROID BAR
-                                        left: 20, 
+                                        left: 20,
                                         right: 20,
                                         zIndex: 60,
                                         transform: [{ translateY: doneButtonAnim }]
@@ -1221,10 +1207,10 @@ const styles = StyleSheet.create({
     deliveryInfo: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
     infoText: { fontSize: 12 },
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-    modalContent: { 
-        borderTopLeftRadius: 32, 
-        borderTopRightRadius: 32, 
-        padding: 24, 
+    modalContent: {
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 24,
         minHeight: 400
     },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

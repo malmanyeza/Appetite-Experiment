@@ -130,37 +130,41 @@ export const RootNavigator = () => {
     const { user, activeRole, isSigningUp } = useAuthStore();
 
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {user && !isSigningUp ? (
-                // Authenticated Stack: Dashboard screens + Full-screen Modals
-                <>
-                    {activeRole === 'driver' ? (
-                        <Stack.Screen name="DriverApp" component={DriverTabs} />
-                    ) : (
-                        <Stack.Screen name="CustomerApp" component={CustomerTabs} />
-                    )}
-                    
-                    {/* Common Full-screen Overlay Screens */}
-                    <Stack.Screen name="RestaurantDetails" component={RestaurantDetails} />
-                    <Stack.Screen name="Cart" component={CartScreen} />
-                    <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
-                    <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-                    <Stack.Screen name="ActiveDelivery" component={ActiveDelivery} />
-                    <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
-                    <Stack.Screen name="OrderTracking" component={OrderTracking} />
-                </>
+        <Stack.Navigator 
+            key={activeRole || 'guest'} 
+            screenOptions={{ headerShown: false }}
+        >
+            {/* 1. Only render ONE interface as the root screen to prevent "stack slip" */}
+            {user && activeRole === 'driver' && !isSigningUp ? (
+                <Stack.Screen name="DriverApp" component={DriverTabs} />
             ) : (
-                // Unauthenticated Stack
+                <Stack.Screen name="CustomerApp" component={CustomerTabs} />
+            )}
+            
+            {/* 3. Authentication Screens (Only needed if NOT logged in) */}
+            {!user && (
                 <>
                     <Stack.Screen name="Login" component={LoginScreen} />
-                    <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
                     <Stack.Screen name="SignUp" component={SignUpScreen} />
-                    <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-                    <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
-                    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
                     <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+                    <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+                    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
                 </>
             )}
+
+            {/* 4. Shared Public & Customer Screens */}
+            <Stack.Screen name="RestaurantDetails" component={RestaurantDetails} />
+            <Stack.Screen name="Cart" component={CartScreen} />
+            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+
+            {/* 5. Authenticated-Only Customer Screens (will handle guest state internally) */}
+            <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
+            <Stack.Screen name="OrderTracking" component={OrderTracking} />
+            <Stack.Screen name="ActiveDelivery" component={ActiveDelivery} />
+            <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
         </Stack.Navigator>
     );
 };

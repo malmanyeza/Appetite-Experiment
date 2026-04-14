@@ -58,7 +58,7 @@ interface AuthState {
 
     refreshSession: (providedSession?: any) => Promise<void>;
     refreshProfile: () => Promise<void>;
-    setActiveRole: (role: 'customer' | 'driver') => void;
+    setActiveRole: (role: 'customer' | 'driver') => Promise<void>;
     setSigningUp: (status: boolean) => void;
     signOut: () => Promise<void>;
     resetPasswordForEmail: (email: string) => Promise<void>;
@@ -177,13 +177,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
 
             const availableRoles = roles?.map((r: { role: string }) => r.role as Role) || [];
-            let defaultRole = availableRoles.includes('customer') ? 'customer' : (availableRoles.includes('driver') ? 'driver' : null);
-
-            if (!defaultRole) defaultRole = 'customer';
-
+            const currentRole = get().activeRole;
             const savedRole = await getStoredRole();
-            if (savedRole && availableRoles.includes(savedRole as Role)) {
+            
+            let defaultRole: Role | null = null;
+            
+            // Priority: 1. Current in-memory role (if still valid) | 2. Saved role | 3. Default
+            if (currentRole && availableRoles.includes(currentRole as Role)) {
+                defaultRole = currentRole as any;
+            } else if (savedRole && availableRoles.includes(savedRole as Role)) {
                 defaultRole = savedRole as any;
+            } else if (availableRoles.includes('customer' as Role)) {
+                defaultRole = 'customer';
+            } else if (availableRoles.includes('driver' as Role)) {
+                defaultRole = 'driver';
             }
 
             const finalRoles = Array.from(new Set([...availableRoles, 'customer' as Role]));
@@ -235,11 +242,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
-    setActiveRole: (role) => {
-        if (get().roles.includes(role)) {
+    setActiveRole: async (role) => {
+        const { roles } = get();
+        if (roles.includes(role)) {
+            console.log(`[Auth] Switching active role to: ${role}`);
+            
+            // 1. PERSIST FIRST: Save to storage asynchronously but AWAIT it 
+            // to ensure no race condition on re-mount refreshes.
+            await setStoredRole(role);
+            
+            // 2. TRIGGER UI: Set memory state which triggers Navigator re-mount
             set({ activeRole: role });
-            // Save the role choice asynchronously to device storage
-            setStoredRole(role);
+        } else {
+            console.warn(`[Auth] Cannot switch to role "${role}" - not found in user roles:`, roles);
+            // Safety: if it's 'customer', we always allow it as a fallback
+            if (role === 'customer') {
+                await setStoredRole('customer');
+                set({ activeRole: 'customer' });
+            }
         }
     },
 

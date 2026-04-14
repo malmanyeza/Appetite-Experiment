@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../theme';
+import { Branding } from '../components/Branding';
 import { Mail, Lock, LogIn, UserPlus } from 'lucide-react-native';
 
 export const LoginScreen = ({ navigation }: any) => {
@@ -140,6 +141,17 @@ export const LoginScreen = ({ navigation }: any) => {
                         <Text style={[styles.footerText, { color: theme.textMuted }]}>Don't have an account?</Text>
                         <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
                             <Text style={[styles.signUpLink, { color: theme.accent }]}>Sign Up</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ marginTop: 20, alignItems: 'center' }}>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('CustomerApp')}
+                            style={{ padding: 12 }}
+                        >
+                            <Text style={{ color: theme.textMuted, fontSize: 14, fontWeight: '600', opacity: 0.8 }}>
+                                Continue as Guest
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
